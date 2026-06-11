@@ -201,6 +201,20 @@ def test_clean_removes_runtime_state_and_untracks_artifacts(tmp_root):
     repo = tmp_root / "clean-repo"
     repo.mkdir()
     subprocess.run(["git", "init"], cwd=repo, text=True, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "harness-eval@example.com"],
+        cwd=repo,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Harness Eval"],
+        cwd=repo,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
     tracked_files = [
         ".codex/skills/harness-engine/SKILL.md",
         "docs/generated/canvas-polish-desktop-final.png",
