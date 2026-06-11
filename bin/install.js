@@ -12,8 +12,8 @@ function printHelp() {
   console.log(`harness-engine
 
 Usage:
-  npx harness-engine install [--local | --global | --path <dir>] [--force]
-  npx harness-engine where [--local | --global | --path <dir>]
+  npx @hallucination-studio/harness-engine install [--local | --global | --path <dir>] [--force]
+  npx @hallucination-studio/harness-engine where [--local | --global | --path <dir>]
 
 Options:
   --local         Install into <cwd>/.codex/skills

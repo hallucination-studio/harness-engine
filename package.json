@@ -1,5 +1,5 @@
 {
-  "name": "harness-engine",
+  "name": "@hallucination-studio/harness-engine",
   "version": "1.0.0",
   "description": "Install a Codex skill that bootstraps and updates an advanced harness-engineering repository layout.",
   "repository": {

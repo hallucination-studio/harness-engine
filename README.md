@@ -33,40 +33,43 @@ inferred from code alone.
 
 ## Install
 
+The npm package is scoped as `@hallucination-studio/harness-engine`. The installed command name is
+still `harness-engine`.
+
 Install the latest stable release into the current repository:
 
 ```bash
-npx harness-engine install --local
+npx @hallucination-studio/harness-engine install --local
 ```
 
 Install the latest beta build from `main`:
 
 ```bash
-npx harness-engine@beta install --local
+npx @hallucination-studio/harness-engine@beta install --local
 ```
 
 Install globally into `${CODEX_HOME:-~/.codex}/skills`:
 
 ```bash
-npx harness-engine install --global
+npx @hallucination-studio/harness-engine install --global
 ```
 
 Install into a custom skills directory:
 
 ```bash
-npx harness-engine install --path /path/to/skills
+npx @hallucination-studio/harness-engine install --path /path/to/skills
 ```
 
 Replace an existing installed skill:
 
 ```bash
-npx harness-engine install --local --force
+npx @hallucination-studio/harness-engine install --local --force
 ```
 
 Show where the skill would be installed:
 
 ```bash
-npx harness-engine where --local
+npx @hallucination-studio/harness-engine where --local
 ```
 
 ## Use The Skill In A Target Repo
@@ -143,9 +146,9 @@ docs/
 Examples:
 
 ```bash
-npx harness-engine install --local
-npx harness-engine@beta install --local
-npx harness-engine@nightly install --local
+npx @hallucination-studio/harness-engine install --local
+npx @hallucination-studio/harness-engine@beta install --local
+npx @hallucination-studio/harness-engine@nightly install --local
 ```
 
 ## Local Development
