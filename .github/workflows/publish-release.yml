@@ -65,14 +65,14 @@ jobs:
           npm version "$TEST_VERSION" --no-git-tag-version --allow-same-version
           echo "MANUAL_VERSION=${TEST_VERSION}" >> "$GITHUB_ENV"
 
-      - name: Set package version for main snapshot
+      - name: Set package version for main beta
         if: ${{ github.event_name == 'push' }}
         run: |
           BASE_VERSION=$(node -p "require('./package.json').version")
           SHORT_SHA="${GITHUB_SHA::7}"
-          SNAPSHOT_VERSION="${BASE_VERSION}-main.${GITHUB_RUN_NUMBER}.${SHORT_SHA}"
-          npm version "$SNAPSHOT_VERSION" --no-git-tag-version --allow-same-version
-          echo "SNAPSHOT_VERSION=${SNAPSHOT_VERSION}" >> "$GITHUB_ENV"
+          BETA_VERSION="${BASE_VERSION}-beta.${GITHUB_RUN_NUMBER}.${SHORT_SHA}"
+          npm version "$BETA_VERSION" --no-git-tag-version --allow-same-version
+          echo "BETA_VERSION=${BETA_VERSION}" >> "$GITHUB_ENV"
 
       - name: Show package version
         run: node -p "'Publishing harness-engine@' + require('./package.json').version"
@@ -93,6 +93,12 @@ jobs:
       - name: Publish latest to npm
         if: ${{ github.event_name == 'release' }}
         run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish main beta to npm
+        if: ${{ github.event_name == 'push' }}
+        run: npm publish --access public --provenance --tag beta
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
