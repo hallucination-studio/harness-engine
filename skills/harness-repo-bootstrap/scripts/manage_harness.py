@@ -33,6 +33,25 @@ PLAN_TEMPLATE = """# Execution Plan: {title}
 
 - Describe how the work will be verified.
 
+## Quality Gate
+
+Status: pending
+Minimum score: 8.0
+Average score: pending
+Last scored: pending
+
+| Dimension | Score | Notes |
+| --- | ---: | --- |
+| Product correctness | pending | Confirm the requested behavior is complete. |
+| UX and operator clarity | pending | Confirm the user or operator experience is understandable. |
+| Architecture and maintainability | pending | Confirm the implementation is clean and easy to change. |
+| Reliability and observability | pending | Confirm the validation loop and failure handling are sufficient. |
+| Security and data handling | pending | Confirm secrets and sensitive data are handled safely. |
+
+## Rework Required
+
+- Pending quality score.
+
 ## Durable Knowledge To Capture
 
 {knowledge_section}
@@ -72,6 +91,8 @@ Read this file first, then follow the linked docs.
 - Keep active plans in `docs/exec-plans/active/`.
 - Move completed plans to `docs/exec-plans/completed/`.
 - Update plans during the work, not only at the end.
+- Score completed work with `quality-score` before closing an execution plan.
+- If `quality-score` fails, treat `## Rework Required` as the next implementation input and do not close the plan.
 - Encode durable facts learned during execution into permanent docs before closing the task.
 - Before handoff, run the local harness check: `python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo .`.
 - Keep generated artifacts in `docs/generated/`.
@@ -279,6 +300,25 @@ List product, architecture, reliability, security, or delivery constraints.
 
 - Describe how the work will be verified.
 
+## Quality Gate
+
+Status: pending
+Minimum score: 8.0
+Average score: pending
+Last scored: pending
+
+| Dimension | Score | Notes |
+| --- | ---: | --- |
+| Product correctness | pending | Confirm the requested behavior is complete. |
+| UX and operator clarity | pending | Confirm the user or operator experience is understandable. |
+| Architecture and maintainability | pending | Confirm the implementation is clean and easy to change. |
+| Reliability and observability | pending | Confirm the validation loop and failure handling is sufficient. |
+| Security and data handling | pending | Confirm secrets and sensitive data are handled safely. |
+
+## Rework Required
+
+- Pending quality score.
+
 ## Durable Knowledge To Capture
 
 - List facts that must be written back into permanent docs before completion.
@@ -293,8 +333,9 @@ Summarize outcomes, follow-ups, and doc updates.
 Move finished plans here after:
 
 1. validation is complete
-2. permanent docs have been updated
-3. any remaining follow-ups are recorded in tech debt or new plans
+2. the quality gate has passed
+3. permanent docs have been updated
+4. any remaining follow-ups are recorded in tech debt or new plans
 """,
     "docs/generated/db-schema.md": """{marker}
 # Generated DB Schema
@@ -397,6 +438,14 @@ QUESTION_CATALOG = [
         "prompt": "Which product areas or architectural layers deserve the strictest quality scoring?",
         "reason": "Needed for QUALITY_SCORE.md.",
     },
+]
+
+QUALITY_DIMENSIONS = [
+    ("product_correctness", "Product correctness"),
+    ("ux_operator_clarity", "UX and operator clarity"),
+    ("architecture_maintainability", "Architecture and maintainability"),
+    ("reliability_observability", "Reliability and observability"),
+    ("security_data_handling", "Security and data handling"),
 ]
 
 
@@ -648,6 +697,115 @@ def replace_completion_notes(text, summary):
     return "\n".join(new_lines).rstrip() + "\n"
 
 
+def replace_section(text, heading, body):
+    lines = text.splitlines()
+    section_index = find_section(lines, f"## {heading}")
+    if section_index is None:
+        return text.rstrip() + f"\n\n## {heading}\n\n{body.rstrip()}\n"
+    end_index = len(lines)
+    for index in range(section_index + 1, len(lines)):
+        if lines[index].startswith("## "):
+            end_index = index
+            break
+    new_lines = lines[: section_index + 1] + ["", body.rstrip()] + lines[end_index:]
+    return "\n".join(new_lines).rstrip() + "\n"
+
+
+def quality_gate_for_plan(text):
+    lines = text.splitlines()
+    section_index = find_section(lines, "## Quality Gate")
+    if section_index is None:
+        return {"status": "missing", "minimum": None, "average": None, "scores": {}}
+    section_lines = []
+    for line in lines[section_index + 1 :]:
+        if line.startswith("## "):
+            break
+        section_lines.append(line)
+    section_text = "\n".join(section_lines)
+    status_match = re.search(r"^Status:\s*(?P<status>\w+)", section_text, flags=re.MULTILINE)
+    minimum_match = re.search(r"^Minimum score:\s*(?P<score>[0-9]+(?:\.[0-9]+)?)", section_text, flags=re.MULTILINE)
+    average_match = re.search(r"^Average score:\s*(?P<score>[0-9]+(?:\.[0-9]+)?)", section_text, flags=re.MULTILINE)
+    scores = {}
+    for _, label in QUALITY_DIMENSIONS:
+        row_match = re.search(
+            rf"^\|\s*{re.escape(label)}\s*\|\s*(?P<score>[0-9]+(?:\.[0-9]+)?)\s*\|",
+            section_text,
+            flags=re.MULTILINE,
+        )
+        if row_match:
+            scores[label] = float(row_match.group("score"))
+    return {
+        "status": status_match.group("status").lower() if status_match else "missing",
+        "minimum": float(minimum_match.group("score")) if minimum_match else None,
+        "average": float(average_match.group("score")) if average_match else None,
+        "scores": scores,
+    }
+
+
+def render_quality_gate(scores, notes, minimum):
+    average = sum(scores.values()) / len(scores)
+    low_dimensions = [
+        label for key, label in QUALITY_DIMENSIONS if scores[key] < minimum
+    ]
+    passed = average >= minimum and not low_dimensions
+    status = "pass" if passed else "fail"
+    lines = [
+        f"Status: {status}",
+        f"Minimum score: {minimum:.1f}",
+        f"Average score: {average:.1f}",
+        f"Last scored: {datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}",
+        "",
+        "| Dimension | Score | Notes |",
+        "| --- | ---: | --- |",
+    ]
+    for key, label in QUALITY_DIMENSIONS:
+        note = notes.get(key) or "No note provided."
+        safe_note = note.replace("\n", " ").replace("|", "\\|").strip()
+        lines.append(f"| {label} | {scores[key]:.1f} | {safe_note} |")
+    return "\n".join(lines), passed, average, low_dimensions
+
+
+def render_rework_section(passed, average, minimum, low_dimensions, notes):
+    if passed:
+        return "None. Quality gate passed."
+    lines = [
+        f"- Rework implementation until every quality dimension is at least {minimum:.1f}; current average is {average:.1f}.",
+    ]
+    for key, label in QUALITY_DIMENSIONS:
+        if label in low_dimensions:
+            note = notes.get(key) or "No note provided."
+            lines.append(f"- Improve {label}: {note}")
+    return "\n".join(lines)
+
+
+def update_quality_gate(plan_path, scores, notes, minimum):
+    text = plan_path.read_text()
+    gate_text, passed, average, low_dimensions = render_quality_gate(scores, notes, minimum)
+    updated = replace_section(text, "Quality Gate", gate_text)
+    updated = replace_section(
+        updated,
+        "Rework Required",
+        render_rework_section(passed, average, minimum, low_dimensions, notes),
+    )
+    plan_path.write_text(updated)
+    return {
+        "status": "pass" if passed else "fail",
+        "minimum": minimum,
+        "average": round(average, 1),
+        "low_dimensions": low_dimensions,
+    }
+
+
+def assert_quality_gate_passed(plan_text):
+    gate = quality_gate_for_plan(plan_text)
+    if gate["status"] != "pass":
+        raise RuntimeError(
+            "Cannot close plan until the quality gate passes. "
+            "Run `quality-score`, fix any `## Rework Required` items, then score again."
+        )
+    return gate
+
+
 def append_knowledge_item(plan_path, fact, destination):
     text = plan_path.read_text()
     lines = text.splitlines()
@@ -824,6 +982,8 @@ def close_plan(repo, plan_relative_path, summary, force):
     if not plan_path.exists():
         raise FileNotFoundError(f"Plan not found: {plan_path}")
     text = plan_path.read_text()
+    if not force:
+        assert_quality_gate_passed(text)
     open_items = [item for item in extract_knowledge_items(text) if item.startswith("- [ ]")]
     if open_items and not force:
         raise RuntimeError(
@@ -869,6 +1029,25 @@ def check_harness(repo):
             if plan_path.name in {"README.md", "_template.md"}:
                 continue
             relative_plan = str(plan_path.relative_to(repo))
+            quality_gate = quality_gate_for_plan(plan_path.read_text())
+            if quality_gate["status"] == "missing":
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "missing-quality-gate",
+                        "path": relative_plan,
+                        "message": "Active plan is missing a Quality Gate section.",
+                    }
+                )
+            elif quality_gate["status"] != "pass":
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "quality-gate-not-passing",
+                        "path": relative_plan,
+                        "message": "Active plan quality gate has not passed; score the work and finish rework before handoff.",
+                    }
+                )
             for item in extract_knowledge_items(plan_path.read_text()):
                 parsed = parse_knowledge_item(item)
                 if not parsed:
@@ -1064,6 +1243,39 @@ def command_plan_close(args):
     write_json(args.output, result)
 
 
+def score_arg(args, name):
+    value = getattr(args, name)
+    if value < 0 or value > 10:
+        raise ValueError(f"{name.replace('_', '-')} must be between 0 and 10")
+    return float(value)
+
+
+def command_quality_score(args):
+    repo = Path(args.repo).resolve()
+    plan_path = repo / args.plan
+    if not plan_path.exists():
+        raise FileNotFoundError(f"Plan not found: {plan_path}")
+    scores = {
+        "product_correctness": score_arg(args, "product_correctness"),
+        "ux_operator_clarity": score_arg(args, "ux_operator_clarity"),
+        "architecture_maintainability": score_arg(args, "architecture_maintainability"),
+        "reliability_observability": score_arg(args, "reliability_observability"),
+        "security_data_handling": score_arg(args, "security_data_handling"),
+    }
+    notes = {
+        "product_correctness": args.product_note,
+        "ux_operator_clarity": args.ux_note,
+        "architecture_maintainability": args.architecture_note,
+        "reliability_observability": args.reliability_note,
+        "security_data_handling": args.security_note,
+    }
+    result = update_quality_gate(plan_path, scores, notes, args.minimum)
+    result.update({"repo": str(repo), "plan": str(plan_path)})
+    write_json(args.output, result)
+    if result["status"] != "pass":
+        raise SystemExit(1)
+
+
 def command_knowledge_mark_written(args):
     repo = Path(args.repo).resolve()
     plan_path = repo / args.plan
@@ -1162,6 +1374,23 @@ def build_parser():
     plan_close.add_argument("--force", action="store_true")
     plan_close.add_argument("--output")
     plan_close.set_defaults(func=command_plan_close)
+
+    quality_score = subparsers.add_parser("quality-score")
+    quality_score.add_argument("--repo", required=True)
+    quality_score.add_argument("--plan", required=True)
+    quality_score.add_argument("--minimum", type=float, default=8.0)
+    quality_score.add_argument("--product-correctness", type=float, required=True)
+    quality_score.add_argument("--ux-operator-clarity", type=float, required=True)
+    quality_score.add_argument("--architecture-maintainability", type=float, required=True)
+    quality_score.add_argument("--reliability-observability", type=float, required=True)
+    quality_score.add_argument("--security-data-handling", type=float, required=True)
+    quality_score.add_argument("--product-note", default="")
+    quality_score.add_argument("--ux-note", default="")
+    quality_score.add_argument("--architecture-note", default="")
+    quality_score.add_argument("--reliability-note", default="")
+    quality_score.add_argument("--security-note", default="")
+    quality_score.add_argument("--output")
+    quality_score.set_defaults(func=command_quality_score)
 
     check = subparsers.add_parser("check")
     check.add_argument("--repo", required=True)

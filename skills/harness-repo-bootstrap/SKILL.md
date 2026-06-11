@@ -21,9 +21,11 @@ Run the packaged script to inspect the target repository before editing files. U
 8. If you learn durable facts during the work, run `python3 scripts/manage_harness.py knowledge-log --repo <target-repo> --plan <plan-file> --fact "<fact>" --destination <durable-doc>` and keep the returned `id`.
 9. Before closing the task, write those facts into their durable docs.
 10. Run `python3 scripts/manage_harness.py knowledge-mark-written --repo <target-repo> --plan <plan-file> --id <knowledge-id> --evidence "<text already in durable doc>"`; use `--append` only when the exact fact should be appended mechanically.
-11. Close the plan with `python3 scripts/manage_harness.py plan-close --repo <target-repo> --plan <plan-file> --summary "<summary>"`.
-12. Before handoff, run `python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo <target-repo>` from an installed target repository.
-13. After changing this skill, run `python3 evals/run_evals.py` and iterate until it passes.
+11. Score the finished work with `python3 scripts/manage_harness.py quality-score --repo <target-repo> --plan <plan-file> --product-correctness <0-10> --ux-operator-clarity <0-10> --architecture-maintainability <0-10> --reliability-observability <0-10> --security-data-handling <0-10>`.
+12. If `quality-score` fails, treat `## Rework Required` in the plan as the next implementation input, fix the work, then run `quality-score` again.
+13. Close the plan with `python3 scripts/manage_harness.py plan-close --repo <target-repo> --plan <plan-file> --summary "<summary>"`.
+14. Before handoff, run `python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo <target-repo>` from an installed target repository.
+15. After changing this skill, run `python3 evals/run_evals.py` and iterate until it passes.
 
 ## Reading Order
 
@@ -48,7 +50,8 @@ Run the packaged script to inspect the target repository before editing files. U
 - Treat `docs/sops/` as mechanical operating procedures, not background reading.
 - When you answer a question using facts that are not yet in the repo but should be reusable, write them into a durable doc before finishing.
 - Prefer `knowledge-mark-written --id ... --evidence ...` so durable docs can use natural wording instead of duplicated exact fact strings.
-- Use `plan-close` as the final guardrail so plan state and durable docs stay synchronized.
+- Use `quality-score` before `plan-close`; failed scores must drive rework, not handoff.
+- Use `plan-close` as the final guardrail so plan state, quality score, and durable docs stay synchronized.
 - Use `check` as the local handoff guardrail for user repositories.
 - Run `python3 evals/run_evals.py` after skill changes and treat failures as iteration input.
 - Do not add CI to user repositories unless the human explicitly asks for it.

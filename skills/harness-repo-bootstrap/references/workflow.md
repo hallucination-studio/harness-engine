@@ -42,6 +42,8 @@ After the scaffold exists:
 - follow the matching SOP for architecture, UI, observability, or knowledge capture work
 - encode durable knowledge back into the repository before closing the task
 - mark logged knowledge items as written after updating the permanent docs
+- run `quality-score` after implementation and validation
+- if `quality-score` fails, implement the `## Rework Required` items and score again
 - use `plan-close` to verify no durable knowledge is left stranded in the active plan
 - run `.codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo <target-repo>` before handoff
 - do not add CI to the target repository unless the human explicitly asks for it

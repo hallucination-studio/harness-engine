@@ -19,6 +19,7 @@ ask for missing high-impact facts, create the harness files, and keep future wor
 - Adds SOPs for architecture setup, knowledge capture, local observability, and UI validation.
 - Enforces a local harness check without assuming the user's project has CI.
 - Supports durable knowledge closure with stable knowledge IDs and evidence text, so permanent docs can use natural wording instead of duplicated checklist strings.
+- Enforces a local quality gate for execution plans; failed scores write `## Rework Required` into the plan and block `plan-close`.
 
 ## Why It Exists
 
@@ -89,8 +90,10 @@ The intended workflow is:
 5. Log durable knowledge into active plans.
 6. Write the durable facts into permanent docs.
 7. Mark knowledge as written using ID plus evidence text.
-8. Run the local harness check before handoff.
-9. Close the execution plan only after the durable docs are updated.
+8. Score the finished work across product, UX/operator clarity, architecture, reliability, and security.
+9. If the quality gate fails, implement the generated `## Rework Required` items and score again.
+10. Close the execution plan only after the quality gate passes and durable docs are updated.
+11. Run the local harness check before handoff.
 
 The installed skill exposes the underlying script at:
 
@@ -105,8 +108,13 @@ python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py analyze -
 python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py sample-answers --analysis analysis.json --output answers.json
 python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py init --repo . --answers answers.json
 python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py plan-start --repo . --slug feature-name --goal "Implement the feature"
+python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py quality-score --repo . --plan docs/exec-plans/active/2026-06-11-feature-name.md --product-correctness 8 --ux-operator-clarity 8 --architecture-maintainability 8 --reliability-observability 8 --security-data-handling 8
 python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo .
 ```
+
+The quality gate is intentionally local and repository-owned. It does not require the user's
+project to have CI. `plan-close` refuses to move a plan to `completed` unless `quality-score`
+has passed, and `check` reports active plans whose quality gate is missing or failing.
 
 ## Generated Harness Shape
 
@@ -184,14 +192,14 @@ These scores describe the current implementation, not an external guarantee.
 | Layer | Score | Notes |
 | --- | ---: | --- |
 | Product fit | 8.5 / 10 | Clear purpose: install a Codex skill that creates and maintains an agent-first repository harness. The main missing piece is broader real-world usage data across more project types. |
-| Skill workflow design | 8.5 / 10 | Strong progressive workflow: analyze, confirm, initialize/update, plan, capture knowledge, validate, close. The current skill is opinionated but still adapts to target repositories. |
-| Knowledge-closure loop | 8 / 10 | Stable knowledge IDs plus evidence text reduce noisy doc duplication. Future work could move plan state into structured sidecar metadata instead of Markdown parsing. |
+| Skill workflow design | 9 / 10 | Strong progressive workflow: analyze, confirm, initialize/update, plan, capture knowledge, validate, score, rework, close. The current skill is opinionated but still adapts to target repositories. |
+| Knowledge and quality closure loop | 8.5 / 10 | Stable knowledge IDs plus evidence text reduce noisy doc duplication, and `quality-score` now blocks closure until failed dimensions are reworked. Future work could move plan state into structured sidecar metadata instead of Markdown parsing. |
 | CLI installer | 8 / 10 | Simple local/global/custom install modes, force replacement, and path discovery. It is intentionally minimal and does not manage Codex runtime configuration. |
 | Generated harness docs | 7.5 / 10 | Covers architecture, plans, reliability, security, frontend policy, references, generated artifacts, and SOPs. Templates still require Codex to tighten project-specific language after generation. |
-| Evaluation coverage | 7.5 / 10 | Includes empty-repo init, frontend analysis, closed-loop plan behavior, user-owned doc preservation, and installer smoke tests. More end-to-end Codex acceptance tests would raise confidence. |
+| Evaluation coverage | 8 / 10 | Includes empty-repo init, frontend analysis, quality-gated closed-loop plan behavior, user-owned doc preservation, and installer smoke tests. More end-to-end Codex acceptance tests would raise confidence. |
 | Release automation | 8 / 10 | Supports stable release, beta on every main commit, nightly, manual dry-run, artifacts, provenance, and token fallback. npm first-publish/trusted-publishing setup still requires external configuration. |
 | User-project safety | 8.5 / 10 | The skill avoids adding CI to target projects by default and uses local harness checks instead. It preserves unmanaged files unless forced. |
-| Overall | 8.1 / 10 | Usable and coherent, with the highest leverage still in richer evals and more structured plan/knowledge state. |
+| Overall | 8.3 / 10 | Usable and coherent, with the highest leverage still in richer end-to-end evals and more structured plan/knowledge/quality state. |
 
 ## Reference
 

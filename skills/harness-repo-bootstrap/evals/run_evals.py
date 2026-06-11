@@ -185,6 +185,69 @@ def test_closed_loop_plan(tmp_root):
         "--append",
     )
     assert_contains(repo, "docs/PRODUCT_SENSE.md", fact)
+    run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "done",
+        expect_success=False,
+    )
+    failing_score = run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "9",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "7",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+        "--architecture-note",
+        "Plan closure needs a deterministic quality gate before handoff",
+        expect_success=False,
+    )
+    if failing_score["status"] != "fail":
+        raise AssertionError("Low dimension score should fail the quality gate")
+    plan_text_after_fail = plan_path.read_text()
+    if "## Rework Required" not in plan_text_after_fail:
+        raise AssertionError("Failing quality score should keep a rework section")
+    if "Improve Architecture and maintainability" not in plan_text_after_fail:
+        raise AssertionError("Failing quality score should name the low dimension")
+    check_after_fail = run_manager("check", "--repo", str(repo), expect_success=False)
+    if check_after_fail["status"] != "fail":
+        raise AssertionError("Harness check should fail while an active plan has a failed quality gate")
+    passing_score = run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "9",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+        "--product-note",
+        "Requested behavior is complete",
+        "--architecture-note",
+        "Plan closure now has a deterministic quality gate",
+    )
+    if passing_score["status"] != "pass":
+        raise AssertionError("Scores at or above the minimum should pass")
     close_result = run_manager(
         "plan-close",
         "--repo",
@@ -258,6 +321,23 @@ def test_closed_loop_plan(tmp_root):
         "--evidence",
         "main package owns keyboard input and rendering",
     )
+    run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        id_relative_plan,
+        "--product-correctness",
+        "8",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+    )
     plan_text = id_plan_path.read_text()
     if id_fact in (repo / "ARCHITECTURE.md").read_text():
         raise AssertionError("Id/evidence closure should not require appending the exact fact to the destination")
@@ -278,6 +358,21 @@ def create_formatted_plan(repo):
     plan_path = repo / "docs" / "exec-plans" / "active" / "formatted-plan.md"
     plan_path.write_text(
         """# Execution Plan: Formatted Plan
+
+## Quality Gate
+
+Status: pass
+Minimum score: 8.0
+Average score: 8.0
+Last scored: 2026-06-11T00:00:00Z
+
+| Dimension | Score | Notes |
+| --- | ---: | --- |
+| Product correctness | 8.0 | ok |
+| UX and operator clarity | 8.0 | ok |
+| Architecture and maintainability | 8.0 | ok |
+| Reliability and observability | 8.0 | ok |
+| Security and data handling | 8.0 | ok |
 
 ## Durable Knowledge To Capture
 
