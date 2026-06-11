@@ -1,11 +1,11 @@
 ---
-name: harness-repo-bootstrap
-description: Bootstrap or refresh an advanced harness-engineering repository shape for Codex-driven projects. Use when Codex needs to analyze a repository, ask the human to confirm high-impact product and architecture facts, and then create or update AGENTS.md, architecture docs, policy docs, plan folders, reference folders, and SOP-backed starter files for the repository.
+name: harness-engine
+description: Initialize or refresh an advanced harness-engineering repository shape for Codex-driven projects. Use when Codex needs to analyze a repository, ask the human to confirm high-impact product and architecture facts, and then run the harness-engine init workflow to create or reconcile AGENTS.md, architecture docs, policy docs, plan folders, reference folders, and SOP-backed starter files.
 ---
 
-# Harness Repo Bootstrap
+# Harness Engine
 
-Run the packaged script to inspect the target repository before editing files. Use the generated analysis to decide what to ask the human, what durable knowledge is missing from the repo, and which execution-plan and SOP files must be created or updated.
+Run the packaged script to inspect the target repository before editing files. Use the generated analysis to decide what to ask the human, what durable knowledge is missing from the repo, and which execution-plan and SOP files must be created or reconciled.
 
 ## Workflow
 
@@ -14,9 +14,7 @@ Run the packaged script to inspect the target repository before editing files. U
 3. Ask the human only the unresolved, high-impact questions from `human_confirmations`.
 4. Run `python3 scripts/manage_harness.py sample-answers --analysis <analysis.json> --output <answers.json>`.
 5. Fill the placeholders in `answers.json` from the repository and the human's confirmed answers.
-6. Run one of:
-   - `python3 scripts/manage_harness.py init --repo <target-repo> --answers <answers.json>`
-   - `python3 scripts/manage_harness.py update --repo <target-repo> --answers <answers.json>`
+6. Run `python3 scripts/manage_harness.py init --repo <target-repo> --answers <answers.json>`. This is the single workspace entrypoint: it creates a new harness when none exists, and reconciles a managed or partial harness when managed harness files are already present. Reconcile refreshes managed files, backfills newly introduced managed files, and preserves unmanaged user files. Pass `--force` only with explicit user approval.
 7. If the task is multi-step, run `python3 scripts/manage_harness.py plan-start --repo <target-repo> --slug <task-name> --goal "<goal>"`.
 8. If you learn durable facts during the work, run `python3 scripts/manage_harness.py knowledge-log --repo <target-repo> --plan <plan-file> --fact "<fact>" --destination <durable-doc>` and keep the returned `id`. Use `--fact-file <file>` when the fact contains shell-sensitive characters.
 9. Before closing the task, write those facts into their durable docs.
@@ -28,13 +26,14 @@ Run the packaged script to inspect the target repository before editing files. U
 15. For phased or resumable work, run `python3 scripts/manage_harness.py phase-set --repo <target-repo> --plan <plan-file> --mode <multi-phase|paused|completed|stopped> --workstream <id> --current-phase <n> --continuation <target> --next-action "<next action>"`, then update `workstreams.md` with `workstream-upsert`.
 16. Before closing, replace generic plan placeholders with task-specific scope, constraints, steps, validation, and completion notes; leave no open durable-knowledge placeholder except the default unused line.
 17. Close the plan with `python3 scripts/manage_harness.py plan-close --repo <target-repo> --plan <plan-file> --summary "<summary>"`.
-18. Before handoff, run `python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo <target-repo>` from an installed target repository.
-19. After changing this skill, run `python3 evals/run_evals.py` and iterate until it passes.
+18. Before handoff, run `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo <target-repo>` from an installed target repository.
+19. To review stale generated evidence, run `python3 scripts/manage_harness.py evidence-prune --repo <target-repo>` first; it is dry-run by default. Add `--apply` only after checking the candidate list.
+20. After changing this skill, run `python3 evals/run_evals.py` and iterate until it passes.
 
 ## Reading Order
 
 - Read [references/workflow.md](references/workflow.md) first for the operating model and question policy.
-- Read [references/file-map.md](references/file-map.md) when deciding which generated file to update.
+- Read [references/file-map.md](references/file-map.md) when deciding which generated file to edit.
 - Read [references/question-catalog.md](references/question-catalog.md) when the analysis surfaces ambiguous product, security, reliability, or frontend facts.
 - Read [references/knowledge-capture.md](references/knowledge-capture.md) when you discover facts that should survive chat history.
 - Read [references/exec-plans.md](references/exec-plans.md) before planning or updating any multi-step work.
@@ -45,10 +44,9 @@ Run the packaged script to inspect the target repository before editing files. U
 
 ## Command Rules
 
-- Prefer `analyze` before `init` or `update`.
+- Prefer `analyze` before `init`.
 - Prefer the draft, test, evaluate, iterate loop for changes to this skill.
-- Prefer `init` when the target repo has none of the managed files.
-- Prefer `update` when the repo already contains any managed file or a partial harness layout.
+- Use `init` as the workspace entrypoint for both creation and reconciliation. It refreshes managed harness files when an existing managed harness is detected and preserves unmanaged user files. Use `--force` only when the human accepts overwriting.
 - Do not overwrite existing files unless the human asked for it or you pass `--force`.
 - Treat the generated files as starting points. After generation, tighten them with repository-specific details instead of leaving placeholders behind.
 - Before plan close, replace or remove task placeholders such as "Define in-scope work", "Add the first concrete step", "Describe how the work will be verified", and any ad hoc durable-knowledge TODOs.
@@ -64,6 +62,7 @@ Run the packaged script to inspect the target repository before editing files. U
 - Use `phase-set` and `workstream-upsert` before `plan-close` for Phase 1/2/3 or any other resumable multi-plan work.
 - Use `plan-close` as the final guardrail so plan state, quality score, and durable docs stay synchronized.
 - Use `check` as the local handoff guardrail for user repositories.
+- Use `evidence-prune` as a cleanup preview for old unreferenced files under `docs/generated/`; it never deletes unless `--apply` is present.
 - Run `python3 evals/run_evals.py` after skill changes, read the structured report, and treat per-case failures as iteration input.
 - Do not add CI to user repositories unless the human explicitly asks for it.
 

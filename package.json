@@ -1,7 +1,7 @@
 {
   "name": "@hallucination-studio/harness-engine",
   "version": "1.0.0",
-  "description": "Install a Codex skill that bootstraps and updates an advanced harness-engineering repository layout.",
+  "description": "Install the harness-engine Codex skill for initializing and reconciling advanced repository harness docs.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hallucination-studio/harness-engine.git"
@@ -13,7 +13,7 @@
     "access": "public"
   },
   "scripts": {
-    "test": "python3 skills/harness-repo-bootstrap/evals/run_evals.py",
+    "test": "python3 skills/harness-engine/evals/run_evals.py",
     "smoke:install": "node scripts/smoke_install.js",
     "pack:check": "npm pack --dry-run"
   },

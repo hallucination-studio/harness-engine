@@ -42,7 +42,7 @@ def write_answers(path, project_name="demo"):
         "primary_users": "Codex users and maintainers",
         "deployment_targets": "npm package and local repositories",
         "product_domain": "developer tooling",
-        "reliability_targets": "Repeatable local commands and safe update behavior",
+        "reliability_targets": "Repeatable local commands and safe init behavior",
         "security_constraints": "Do not write secrets or overwrite user-owned docs without consent",
         "frontend_stack_notes": "Frontend changes require browser validation when a UI is detected",
         "quality_focus": "installer behavior, generated docs, plan closure, and knowledge capture",
@@ -118,7 +118,7 @@ def test_empty_repo_init(tmp_root):
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/active/")
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/workstreams.md")
     assert_contains(repo, "AGENTS.md", "docs/sops/")
-    assert_contains(repo, "AGENTS.md", ".codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check")
+    assert_contains(repo, "AGENTS.md", ".codex/skills/harness-engine/scripts/manage_harness.py check")
     assert_contains(repo, "AGENTS.md", "## Issue Workflows")
     assert_contains(repo, "AGENTS.md", "Product contract or acceptance drift")
     assert_contains(repo, "AGENTS.md", "Backend, API, runtime behavior, background jobs, or integrations")
@@ -168,6 +168,33 @@ def test_frontend_analysis(tmp_root):
         raise AssertionError("React should be detected")
     if "docs/sops/evidence-first-eval-loop.md" not in analysis["missing_sops"]:
         raise AssertionError("Analysis should include the evidence-first eval SOP")
+
+
+def test_init_reconciles_existing_harness(tmp_root):
+    repo = tmp_root / "reconcile-repo"
+    repo.mkdir()
+    answers = tmp_root / "reconcile-answers.json"
+    write_answers(answers, project_name="reconcile-demo")
+    init_result = run_manager("init", "--repo", str(repo), "--answers", str(answers))
+    if init_result["mode"] != "init" or "AGENTS.md" not in init_result["created"]:
+        raise AssertionError("init should report created managed files")
+
+    existing_analysis = run_manager("analyze", "--repo", str(repo))
+    if existing_analysis["recommended_action"] != "init" or existing_analysis["harness_state"] != "existing":
+        raise AssertionError("existing harnesses should still route through init reconciliation")
+
+    target = repo / "docs" / "sops" / "evidence-first-eval-loop.md"
+    target.unlink()
+    (repo / "AGENTS.md").write_text("<!-- harness-engine:managed -->\n# stale managed router\n")
+    reconcile_result = run_manager("init", "--repo", str(repo), "--answers", str(answers))
+    if reconcile_result["mode"] != "init" or reconcile_result["operation"] != "reconciled":
+        raise AssertionError("init should reconcile an existing managed harness")
+    if "docs/sops/evidence-first-eval-loop.md" not in reconcile_result["created"]:
+        raise AssertionError("init reconcile should create missing managed files introduced by newer templates")
+    if "AGENTS.md" not in reconcile_result["refreshed"]:
+        raise AssertionError("init reconcile should refresh existing managed files")
+    assert_contains(repo, "AGENTS.md", "## Issue Workflows")
+    assert_exists(repo, "docs/sops/evidence-first-eval-loop.md")
 
 
 def test_closed_loop_plan(tmp_root):
@@ -968,6 +995,59 @@ def test_knowledge_evidence_verbatim(tmp_root):
         raise AssertionError("Closed knowledge item should record the exact verification evidence")
 
 
+def test_evidence_prune_generated_artifacts(tmp_root):
+    repo = tmp_root / "prune-repo"
+    repo.mkdir()
+    answers = tmp_root / "prune-answers.json"
+    write_answers(answers, project_name="prune-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    generated = repo / "docs" / "generated"
+    stale = generated / "old-layout.json"
+    referenced = generated / "kept-layout.json"
+    recent = generated / "recent-layout.json"
+    managed = generated / "managed-starter.md"
+    stale.write_text('{"old": true}\n')
+    referenced.write_text('{"referenced": true}\n')
+    recent.write_text('{"recent": true}\n')
+    managed.write_text("<!-- harness-engine:managed -->\n# Starter\n")
+    old_time = time.time() - (30 * 24 * 60 * 60)
+    for path in [stale, referenced, managed]:
+        os.utime(path, (old_time, old_time))
+    (repo / "docs" / "PLANS.md").write_text(
+        (repo / "docs" / "PLANS.md").read_text()
+        + "\nKeep evidence at docs/generated/kept-layout.json for the closed mobile layout plan.\n"
+    )
+
+    dry_run = run_manager("evidence-prune", "--repo", str(repo), "--older-than-days", "14")
+    candidate_paths = {item["path"] for item in dry_run["candidates"]}
+    if dry_run["mode"] != "dry-run" or dry_run["removed"]:
+        raise AssertionError("evidence-prune should dry-run by default")
+    if "docs/generated/old-layout.json" not in candidate_paths:
+        raise AssertionError("stale unreferenced generated evidence should be a prune candidate")
+    if "docs/generated/kept-layout.json" in candidate_paths:
+        raise AssertionError("referenced generated evidence should not be a prune candidate")
+    if "docs/generated/recent-layout.json" in candidate_paths:
+        raise AssertionError("recent generated evidence should not be a prune candidate")
+    if "docs/generated/managed-starter.md" in candidate_paths:
+        raise AssertionError("managed starter files should not be prune candidates")
+    if not stale.exists():
+        raise AssertionError("dry-run should not delete candidates")
+
+    applied = run_manager(
+        "evidence-prune",
+        "--repo",
+        str(repo),
+        "--older-than-days",
+        "14",
+        "--apply",
+    )
+    if "docs/generated/old-layout.json" not in applied["removed"]:
+        raise AssertionError("apply should remove stale unreferenced generated evidence")
+    if stale.exists() or not referenced.exists() or not recent.exists() or not managed.exists():
+        raise AssertionError("apply should delete only stale unreferenced evidence")
+
+
 def test_eval_report_shape(tmp_root):
     case_metadata = load_case_metadata()
     report = build_report(
@@ -1010,12 +1090,14 @@ def test_eval_report_shape(tmp_root):
 EVALS = [
     ("empty-repo-init", test_empty_repo_init),
     ("frontend-analysis", test_frontend_analysis),
+    ("init-reconciles-existing-harness", test_init_reconciles_existing_harness),
     ("closed-loop-plan", test_closed_loop_plan),
     ("phase-continuity-workstream", test_phase_continuity_workstream),
     ("plan-path-canonicalization", test_plan_path_canonicalization),
     ("defect-recovery-loop", test_defect_recovery_loop),
     ("quality-score-requires-notes", test_quality_score_requires_notes),
     ("knowledge-evidence-verbatim", test_knowledge_evidence_verbatim),
+    ("evidence-prune-generated-artifacts", test_evidence_prune_generated_artifacts),
     ("eval-report-shape", test_eval_report_shape),
     ("preserve-unmanaged-docs", test_preserve_unmanaged_docs),
 ]
@@ -1090,7 +1172,7 @@ def main():
                         "duration_seconds": round(time.monotonic() - started, 3),
                         "findings": [message],
                         "recommended_actions": [
-                            f"Reproduce `{eval_id}` locally with python3 skills/harness-repo-bootstrap/evals/run_evals.py.",
+                            f"Reproduce `{eval_id}` locally with python3 skills/harness-engine/evals/run_evals.py.",
                             "Treat the failing assertion as the next implementation input before release.",
                         ],
                     }

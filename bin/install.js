@@ -5,7 +5,7 @@ const os = require("os");
 const path = require("path");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
-const SKILL_NAME = "harness-repo-bootstrap";
+const SKILL_NAME = "harness-engine";
 const SOURCE_SKILL_DIR = path.join(PACKAGE_ROOT, "skills", SKILL_NAME);
 
 function printHelp() {
@@ -144,7 +144,7 @@ function main() {
   try {
     const installedPath = installSkill(destinationDir, args.force);
     console.log(`Installed ${SKILL_NAME} to ${installedPath}`);
-    console.log("Invoke it in Codex with $harness-repo-bootstrap.");
+    console.log("Invoke it in Codex with $harness-engine.");
   } catch (error) {
     console.error(`Install failed: ${error.message}`);
     process.exit(1);

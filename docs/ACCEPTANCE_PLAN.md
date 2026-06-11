@@ -5,7 +5,7 @@ and the agent-facing harness workflow.
 
 ## Acceptance Goals
 
-- The npm package installs the bundled `harness-repo-bootstrap` skill without extra build output.
+- The npm package installs the bundled `harness-engine` skill without extra build output.
 - The deterministic manager commands protect the closed loop: analyze, scaffold, plan, knowledge capture, quality score, phase continuity, workstream recovery, plan close, and check.
 - A fresh target repository can install the skill locally and have Codex use it to create a harness before implementing real work.
 - The generated work is reviewed for requirement fit, code quality, maintainability, and whether the harness workflow actually shaped the implementation.
@@ -41,9 +41,9 @@ codex exec --cd "$TARGET_DIR" --skip-git-repo-check --dangerously-bypass-approva
 
 The prompt must require Codex to:
 
-- Use `$harness-repo-bootstrap`.
+- Use `$harness-engine`.
 - Analyze the empty repository before creating docs.
-- Create or update the harness with concrete project answers.
+- Initialize or reconcile the harness with concrete project answers.
 - Start an execution plan before implementation.
 - Implement a frontend/backend separated Snake game with a Go backend and browser frontend.
 - Avoid adding CI.
@@ -65,7 +65,7 @@ Passing criteria:
 - Eval or validation results shown to the user include concrete failed cases, evidence gaps, artifact paths when available, and recommended next actions.
 - Completed plan has no open durable knowledge items.
 - `docs/exec-plans/workstreams.md` points at the completed plan path, not the old active path.
-- `python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo .` passes.
+- `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo .` passes.
 - The target app validates with its own commands, including backend tests and frontend syntax checks.
 - If a browser is available, the UI is opened and key user-visible states are verified. If browser automation is blocked, the limitation is recorded and API/static smoke checks must still pass.
 

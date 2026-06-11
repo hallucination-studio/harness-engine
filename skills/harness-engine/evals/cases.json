@@ -8,6 +8,10 @@
     "description": "Frontend repositories should trigger frontend-specific confirmation and policy output."
   },
   {
+    "id": "init-reconciles-existing-harness",
+    "description": "Init should reconcile an existing harness by refreshing managed files and adding newly introduced managed files."
+  },
+  {
     "id": "closed-loop-plan",
     "description": "Execution plans should refuse to close until durable knowledge is written back."
   },
@@ -30,6 +34,10 @@
   {
     "id": "knowledge-evidence-verbatim",
     "description": "Knowledge closure should reject paraphrased evidence and accept exact destination text."
+  },
+  {
+    "id": "evidence-prune-generated-artifacts",
+    "description": "Generated evidence cleanup should dry-run by default and remove only stale unreferenced artifacts when applied."
   },
   {
     "id": "eval-report-shape",

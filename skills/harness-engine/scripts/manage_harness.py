@@ -5,10 +5,11 @@ import hashlib
 import json
 import os
 import re
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-MANAGED_MARKER = "<!-- harness-repo-bootstrap:managed -->"
+MANAGED_MARKER = "<!-- harness-engine:managed -->"
 DEFAULT_KNOWLEDGE_PLACEHOLDER = "- [ ] Add durable facts here as they emerge -> <destination-doc>"
 DEFAULT_DEFECT_PLACEHOLDER = "None."
 PLAN_TEMPLATE = """# Execution Plan: {title}
@@ -136,7 +137,7 @@ For each issue:
 - Score completed work with `quality-score` before closing an execution plan.
 - If `quality-score` fails, treat `## Rework Required` as the next implementation input and do not close the plan.
 - Encode durable facts learned during execution into permanent docs before closing the task.
-- Before handoff, run the local harness check: `python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo .`.
+- Before handoff, run the local harness check: `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo .`.
 - Keep generated artifacts in `docs/generated/`.
 - Keep external references in `docs/references/`.
 """,
@@ -672,7 +673,7 @@ def detect_existing_managed_files(repo):
         path = repo / relative_path
         if path.exists():
             try:
-                if path.read_text().startswith(MANAGED_MARKER):
+                if is_managed_text(path.read_text()):
                     managed.append(relative_path)
             except UnicodeDecodeError:
                 continue
@@ -735,6 +736,10 @@ def fill_template(template, answers, analysis):
 
 def ensure_parent(path):
     path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def is_managed_text(text):
+    return text.startswith(MANAGED_MARKER)
 
 
 def slugify(value):
@@ -1575,7 +1580,7 @@ def should_write(path, refresh_managed, force):
     if force:
         return True
     try:
-        is_managed = path.read_text().startswith(MANAGED_MARKER)
+        is_managed = is_managed_text(path.read_text())
     except UnicodeDecodeError:
         return False
     if refresh_managed and is_managed:
@@ -1585,6 +1590,8 @@ def should_write(path, refresh_managed, force):
 
 def write_scaffold(repo, analysis, answers, refresh_managed=False, force=False):
     written = []
+    created = []
+    refreshed = []
     skipped = []
     all_templates = {}
     all_templates.update(ROOT_FILES)
@@ -1592,14 +1599,19 @@ def write_scaffold(repo, analysis, answers, refresh_managed=False, force=False):
 
     for relative_path, template in all_templates.items():
         target = repo / relative_path
+        existed = target.exists()
         if should_write(target, refresh_managed, force):
             ensure_parent(target)
             content = fill_template(template, answers, analysis)
             target.write_text(content)
             written.append(relative_path)
+            if existed:
+                refreshed.append(relative_path)
+            else:
+                created.append(relative_path)
         else:
             skipped.append(relative_path)
-    return written, skipped
+    return written, skipped, created, refreshed
 
 
 def active_plan_dir(repo):
@@ -1809,6 +1821,63 @@ def check_harness(repo):
     }
 
 
+def docs_text_for_reference_scan(repo):
+    docs_root = repo / "docs"
+    chunks = []
+    roots = [repo / "AGENTS.md", repo / "ARCHITECTURE.md"]
+    if docs_root.exists():
+        roots.extend(path for path in docs_root.rglob("*") if path.is_file())
+    for path in roots:
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            chunks.append(path.read_text())
+        except UnicodeDecodeError:
+            continue
+    return "\n".join(chunks)
+
+
+def evidence_prune_candidates(repo, root="docs/generated", older_than_days=14):
+    evidence_root = (repo / root).resolve()
+    if not evidence_root.exists():
+        return []
+    try:
+        evidence_root.relative_to(repo.resolve())
+    except ValueError as error:
+        raise ValueError(f"Evidence root must be inside repo: {root}") from error
+
+    now = time.time()
+    max_age_seconds = older_than_days * 24 * 60 * 60
+    docs_text = docs_text_for_reference_scan(repo)
+    candidates = []
+    for path in sorted(evidence_root.rglob("*")):
+        if not path.is_file():
+            continue
+        relative_path = str(path.relative_to(repo))
+        try:
+            content = path.read_text()
+        except UnicodeDecodeError:
+            content = ""
+        if is_managed_text(content):
+            continue
+        age_seconds = now - path.stat().st_mtime
+        if age_seconds < max_age_seconds:
+            continue
+        if relative_path in docs_text or path.name in docs_text:
+            continue
+        candidates.append(
+            {
+                "path": relative_path,
+                "age_days": round(age_seconds / (24 * 60 * 60), 1),
+                "reason": (
+                    f"unreferenced file under {root} older than {older_than_days} days "
+                    "and not a managed starter"
+                ),
+            }
+        )
+    return candidates
+
+
 def analyze_repo(repo):
     files = list_repo_files(repo)
     languages = detect_languages(files)
@@ -1882,7 +1951,8 @@ def analyze_repo(repo):
         "missing_sops": missing_sops,
         "durable_knowledge_targets": durable_knowledge_targets,
         "human_confirmations": human_confirmations,
-        "recommended_action": "update" if existing_harness or existing_managed else "init",
+        "harness_state": "existing" if existing_harness or existing_managed else "new",
+        "recommended_action": "init",
         "notes": [
             "Ask the human only the confirmations that the repository cannot answer safely.",
             "If unmanaged harness files already exist, preserve them unless the human explicitly requests replacement.",
@@ -1928,16 +1998,29 @@ def command_sample_answers(args):
     write_json(args.output, payload)
 
 
-def command_init_or_update(args, refresh_managed):
+def command_init(args):
     repo = Path(args.repo).resolve()
     analysis = analyze_repo(repo)
     answers = load_json(args.answers)
-    written, skipped = write_scaffold(repo, analysis, answers, refresh_managed=refresh_managed, force=args.force)
+    has_harness = bool(analysis["existing_harness_files"] or analysis["existing_managed_files"])
+    effective_refresh = has_harness or args.force
+    written, skipped, created, refreshed = write_scaffold(
+        repo,
+        analysis,
+        answers,
+        refresh_managed=effective_refresh,
+        force=args.force,
+    )
     result = {
         "repo": str(repo),
         "written": written,
+        "created": created,
+        "refreshed": refreshed,
         "skipped": skipped,
-        "mode": "update" if refresh_managed else "init",
+        "mode": "init",
+        "operation": "reconciled" if has_harness else "created",
+        "refresh_managed": effective_refresh,
+        "force": args.force,
     }
     write_json(args.output, result)
 
@@ -2109,6 +2192,32 @@ def command_check(args):
         raise SystemExit(1)
 
 
+def command_evidence_prune(args):
+    repo = Path(args.repo).resolve()
+    candidates = evidence_prune_candidates(
+        repo,
+        root=args.root,
+        older_than_days=args.older_than_days,
+    )
+    removed = []
+    if args.apply:
+        for candidate in candidates:
+            path = repo / candidate["path"]
+            if path.exists() and path.is_file():
+                path.unlink()
+                removed.append(candidate["path"])
+    result = {
+        "repo": str(repo),
+        "root": args.root,
+        "older_than_days": args.older_than_days,
+        "mode": "apply" if args.apply else "dry-run",
+        "candidate_count": len(candidates),
+        "candidates": candidates,
+        "removed": removed,
+    }
+    write_json(args.output, result)
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="Manage the harness repo scaffold.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -2128,19 +2237,7 @@ def build_parser():
     init.add_argument("--answers", required=True)
     init.add_argument("--output")
     init.add_argument("--force", action="store_true")
-    init.set_defaults(func=lambda args: command_init_or_update(args, refresh_managed=False))
-
-    update = subparsers.add_parser("update")
-    update.add_argument("--repo", required=True)
-    update.add_argument("--answers", required=True)
-    update.add_argument("--output")
-    update.add_argument("--refresh-managed", action="store_true")
-    update.add_argument("--force", action="store_true")
-    update.set_defaults(
-        func=lambda args: command_init_or_update(
-            args, refresh_managed=args.refresh_managed or args.force
-        )
-    )
+    init.set_defaults(func=command_init)
 
     plan_start = subparsers.add_parser("plan-start")
     plan_start.add_argument("--repo", required=True)
@@ -2255,6 +2352,14 @@ def build_parser():
     check.add_argument("--repo", required=True)
     check.add_argument("--output")
     check.set_defaults(func=command_check)
+
+    evidence_prune = subparsers.add_parser("evidence-prune")
+    evidence_prune.add_argument("--repo", required=True)
+    evidence_prune.add_argument("--root", default="docs/generated")
+    evidence_prune.add_argument("--older-than-days", type=int, default=14)
+    evidence_prune.add_argument("--apply", action="store_true")
+    evidence_prune.add_argument("--output")
+    evidence_prune.set_defaults(func=command_evidence_prune)
 
     return parser
 

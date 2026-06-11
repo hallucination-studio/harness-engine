@@ -23,12 +23,11 @@ Also inspect the analysis for:
 - missing execution-plan state
 - which SOPs should be referenced in the generated router docs
 
-## Pass 2: Scaffold or Refresh
+## Pass 2: Init
 
-Run `sample-answers`, fill the answers, then run `init` or `update`.
+Run `sample-answers`, fill the answers, then run `init`.
 
-Use `init` for first-time adoption.
-Use `update` to add missing managed files or refresh managed files when `--refresh-managed` is passed.
+Use `init` for both first-time adoption and managed-harness reconciliation. It creates a new harness when none exists, and refreshes managed harness files plus backfills newly introduced managed files when an existing managed harness is detected. Unmanaged user files are preserved unless `--force` is explicitly used.
 
 After the script runs, read the generated docs once and tighten weak generic phrases before handing off.
 
@@ -51,5 +50,6 @@ After the scaffold exists:
 - use `phase-set` and `workstream-upsert` when a plan belongs to phased or resumable work
 - use `plan-close` to verify no durable knowledge is left stranded in the active plan
 - before `plan-close`, replace generic plan placeholders with task-specific scope, constraints, steps, validation, and completion notes; delete unused ad hoc durable-knowledge TODOs
-- run `.codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo <target-repo>` before handoff
+- run `.codex/skills/harness-engine/scripts/manage_harness.py check --repo <target-repo>` before handoff
+- preview stale generated evidence with `evidence-prune` when `docs/generated/` contains old screenshots, DOM dumps, layout summaries, or smoke outputs; review the dry-run output before using `--apply`
 - do not add CI to the target repository unless the human explicitly asks for it

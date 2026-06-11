@@ -14,7 +14,7 @@ execFileSync(process.execPath, [installer, "install", "--path", target], {
   stdio: "pipe"
 });
 
-const skill = path.join(target, "harness-repo-bootstrap");
+const skill = path.join(target, "harness-engine");
 const skillFile = path.join(skill, "SKILL.md");
 const manager = path.join(skill, "scripts", "manage_harness.py");
 
