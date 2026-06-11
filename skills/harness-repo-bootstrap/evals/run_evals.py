@@ -5,10 +5,18 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 MANAGER = SKILL_DIR / "scripts" / "manage_harness.py"
+CASES_PATH = Path(__file__).with_name("cases.json")
+
+
+def load_case_metadata():
+    if not CASES_PATH.exists():
+        return {}
+    return {item["id"]: item for item in json.loads(CASES_PATH.read_text())}
 
 
 def run_manager(*args, expect_success=True):
@@ -83,12 +91,17 @@ def test_empty_repo_init(tmp_root):
         "docs/exec-plans/active/_template.md",
         "docs/exec-plans/completed/README.md",
         "docs/sops/encode-unseen-knowledge.md",
+        "docs/sops/evidence-first-eval-loop.md",
     ]:
         assert_exists(repo, relative_path)
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/active/")
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/workstreams.md")
     assert_contains(repo, "AGENTS.md", "docs/sops/")
     assert_contains(repo, "AGENTS.md", ".codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check")
+    assert_contains(repo, "docs/QUALITY_SCORE.md", "Evidence Requirements")
+    assert_contains(repo, "docs/QUALITY_SCORE.md", "Treat LLM or human judgment as a summary over evidence")
+    assert_contains(repo, "docs/FRONTEND.md", "Evidence For Meaningful UI Work")
+    assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Report per-case results")
 
 
 def test_frontend_analysis(tmp_root):
@@ -117,6 +130,8 @@ def test_frontend_analysis(tmp_root):
         raise AssertionError("Frontend repo should ask frontend confirmation questions")
     if "React" not in analysis["frameworks"]:
         raise AssertionError("React should be detected")
+    if "docs/sops/evidence-first-eval-loop.md" not in analysis["missing_sops"]:
+        raise AssertionError("Analysis should include the evidence-first eval SOP")
 
 
 def test_closed_loop_plan(tmp_root):
@@ -749,6 +764,45 @@ def test_defect_recovery_loop(tmp_root):
         raise AssertionError("plan-close should not mark the default knowledge placeholder as completed")
 
 
+def test_eval_report_shape(tmp_root):
+    case_metadata = load_case_metadata()
+    report = build_report(
+        [
+            {
+                "id": "empty-repo-init",
+                "status": "pass",
+                "description": case_metadata["empty-repo-init"]["description"],
+                "score": 1.0,
+                "duration_seconds": 0.01,
+                "findings": [],
+                "recommended_actions": [],
+            },
+            {
+                "id": "frontend-analysis",
+                "status": "fail",
+                "description": case_metadata["frontend-analysis"]["description"],
+                "score": 0.0,
+                "duration_seconds": 0.02,
+                "findings": ["Frontend repo should ask frontend confirmation questions"],
+                "recommended_actions": ["Fix frontend-analysis before release."],
+            },
+        ]
+    )
+    if report["schema_version"] != "harness-eval-report.v1":
+        raise AssertionError("Eval report should expose a stable schema version")
+    if report["status"] != "fail" or report["score"] != 50:
+        raise AssertionError("Eval report should expose aggregate status and score")
+    if report["metrics"]["case_pass_rate"] != 0.5:
+        raise AssertionError("Eval report should expose detailed aggregate metrics")
+    if "case_results" not in report or len(report["case_results"]) != 2:
+        raise AssertionError("Eval report should expose per-case results")
+    failed_case = report["case_results"][1]
+    if not failed_case["findings"] or not failed_case["recommended_actions"]:
+        raise AssertionError("Failed eval cases should expose findings and recommended actions")
+    if "Review `case_results`" not in report["user_message"]:
+        raise AssertionError("Eval report should include a user-facing failure message")
+
+
 EVALS = [
     ("empty-repo-init", test_empty_repo_init),
     ("frontend-analysis", test_frontend_analysis),
@@ -756,31 +810,89 @@ EVALS = [
     ("phase-continuity-workstream", test_phase_continuity_workstream),
     ("plan-path-canonicalization", test_plan_path_canonicalization),
     ("defect-recovery-loop", test_defect_recovery_loop),
+    ("eval-report-shape", test_eval_report_shape),
     ("preserve-unmanaged-docs", test_preserve_unmanaged_docs),
 ]
 
 
+def build_report(results):
+    passed = sum(1 for result in results if result["status"] == "pass")
+    total = len(results)
+    failed_results = [result for result in results if result["status"] == "fail"]
+    return {
+        "schema_version": "harness-eval-report.v1",
+        "status": "pass" if passed == total else "fail",
+        "score": round((passed / total) * 100) if total else 0,
+        "summary": {
+            "passed": passed,
+            "failed": total - passed,
+            "total": total,
+            "message": (
+                f"All {total} harness eval cases passed."
+                if passed == total
+                else f"{total - passed} of {total} harness eval cases failed."
+            ),
+        },
+        "metrics": {
+            "case_pass_rate": round(passed / total, 4) if total else 0,
+            "case_fail_rate": round((total - passed) / total, 4) if total else 0,
+            "failed_case_count": total - passed,
+        },
+        "case_results": results,
+        "user_message": (
+            "Harness evals passed. No release-blocking eval findings were detected."
+            if passed == total
+            else "Harness evals failed. Review `case_results` and fix the listed findings before handoff or release."
+        ),
+        "recommended_actions": [
+            action
+            for result in failed_results
+            for action in result["recommended_actions"]
+        ],
+    }
+
+
 def main():
     results = []
+    case_metadata = load_case_metadata()
     with tempfile.TemporaryDirectory() as tmp:
         tmp_root = Path(tmp)
         for eval_id, test_func in EVALS:
+            started = time.monotonic()
+            metadata = case_metadata.get(eval_id, {})
             try:
                 test_func(tmp_root)
-                results.append({"id": eval_id, "status": "pass"})
+                results.append(
+                    {
+                        "id": eval_id,
+                        "status": "pass",
+                        "description": metadata.get("description", ""),
+                        "score": 1.0,
+                        "duration_seconds": round(time.monotonic() - started, 3),
+                        "findings": [],
+                        "recommended_actions": [],
+                    }
+                )
             except Exception as error:
-                results.append({"id": eval_id, "status": "fail", "error": str(error)})
+                message = str(error)
+                results.append(
+                    {
+                        "id": eval_id,
+                        "status": "fail",
+                        "description": metadata.get("description", ""),
+                        "score": 0.0,
+                        "duration_seconds": round(time.monotonic() - started, 3),
+                        "findings": [message],
+                        "recommended_actions": [
+                            f"Reproduce `{eval_id}` locally with python3 skills/harness-repo-bootstrap/evals/run_evals.py.",
+                            "Treat the failing assertion as the next implementation input before release.",
+                        ],
+                    }
+                )
 
-    passed = sum(1 for result in results if result["status"] == "pass")
-    total = len(results)
-    report = {
-        "score": round((passed / total) * 100),
-        "passed": passed,
-        "total": total,
-        "results": results,
-    }
+    report = build_report(results)
     print(json.dumps(report, indent=2) + "\n")
-    if passed != total:
+    if report["status"] != "pass":
         sys.exit(1)
 
 

@@ -40,6 +40,7 @@ Run the packaged script to inspect the target repository before editing files. U
 - Read [references/sop-index.md](references/sop-index.md) to choose the right SOP for architecture, UI validation, observability, or knowledge capture work.
 - Read [references/template-policy.md](references/template-policy.md) before overwriting existing files.
 - Read [references/evaluation-loop.md](references/evaluation-loop.md) before changing the skill, templates, scripts, or policy references.
+- Read [references/evidence-first-evals.md](references/evidence-first-evals.md) before designing evals for product correctness, frontend validation, or bug-discovery coverage.
 
 ## Command Rules
 
@@ -60,7 +61,7 @@ Run the packaged script to inspect the target repository before editing files. U
 - Use `phase-set` and `workstream-upsert` before `plan-close` for Phase 1/2/3 or any other resumable multi-plan work.
 - Use `plan-close` as the final guardrail so plan state, quality score, and durable docs stay synchronized.
 - Use `check` as the local handoff guardrail for user repositories.
-- Run `python3 evals/run_evals.py` after skill changes and treat failures as iteration input.
+- Run `python3 evals/run_evals.py` after skill changes, read the structured report, and treat per-case failures as iteration input.
 - Do not add CI to user repositories unless the human explicitly asks for it.
 
 ## Output Rules

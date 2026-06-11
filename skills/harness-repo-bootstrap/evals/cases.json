@@ -12,12 +12,20 @@
     "description": "Execution plans should refuse to close until durable knowledge is written back."
   },
   {
+    "id": "phase-continuity-workstream",
+    "description": "Phased plans should record continuation and keep workstream references recoverable."
+  },
+  {
     "id": "plan-path-canonicalization",
     "description": "Plan commands should canonicalize absolute plan paths before updating workstreams."
   },
   {
     "id": "defect-recovery-loop",
     "description": "Validation or review defects should block quality gates until resolved with evidence."
+  },
+  {
+    "id": "eval-report-shape",
+    "description": "Eval output should expose structured per-case scores, findings, user-facing messages, and recommended actions."
   },
   {
     "id": "preserve-unmanaged-docs",

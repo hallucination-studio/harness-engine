@@ -23,6 +23,8 @@ npm run pack:check
 Passing criteria:
 
 - `npm test` reports every eval as `pass`.
+- `npm test` emits `harness-eval-report.v1` JSON with aggregate metrics, per-case results,
+  findings, a user-facing message, and recommended actions for failed cases.
 - `smoke:install` installs the skill into a temporary skills directory.
 - `pack:check` includes `SKILL.md`, `agents`, `assets`, `references`, `scripts`, and eval sources, but does not include `__pycache__`, `.pyc`, local `.codex`, or tarball artifacts.
 
@@ -48,6 +50,7 @@ The prompt must require Codex to:
 - Capture durable knowledge into permanent docs.
 - Log any test, eval, browser, or code-review bug with `defect-log`.
 - Resolve logged bugs with `defect-resolve` and explicit passing evidence before scoring again.
+- Treat product requirements, frontend layout checks, and bug regressions as evidence-first eval cases, not only subjective score notes.
 - Run `quality-score`; if it fails, rework before closing.
 - Use `phase-set`, `workstream-upsert`, `plan-close`, and `check`.
 - Report validation commands and artifact paths.
@@ -59,6 +62,7 @@ Passing criteria:
 - `docs/exec-plans/completed/` contains the completed plan.
 - Completed plan has `Quality Gate` status `pass` with average score at least `8.0`.
 - Any discovered defect is recorded under `Defects To Resolve`, blocks `quality-score`, and is resolved with evidence before `plan-close`.
+- Eval or validation results shown to the user include concrete failed cases, evidence gaps, artifact paths when available, and recommended next actions.
 - Completed plan has no open durable knowledge items.
 - `docs/exec-plans/workstreams.md` points at the completed plan path, not the old active path.
 - `python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo .` passes.

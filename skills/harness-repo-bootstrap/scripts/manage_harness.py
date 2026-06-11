@@ -94,7 +94,7 @@ Read this file first, then follow the linked docs.
 - Read `docs/RELIABILITY.md` for runtime validation and failure handling.
 - Read `docs/SECURITY.md` before touching auth, secrets, or sensitive data.
 - Read `docs/FRONTEND.md` for UI or terminal interface changes.
-- Read the matching file in `docs/sops/` before architecture changes, UI validation, observability work, or knowledge capture.
+- Read the matching file in `docs/sops/` before architecture changes, UI validation, observability work, evidence-first evals, or knowledge capture.
 
 ## Repository Focus
 
@@ -178,6 +178,14 @@ DOC_FILES = {
 ## Validation Loop
 
 {frontend_validation_loop}
+
+## Evidence For Meaningful UI Work
+
+- Capture desktop and mobile evidence for significant UI changes.
+- Assert primary text, controls, selected state, loading state, empty state, error state, and primary interactions from the DOM or accessibility tree.
+- Check layout invariants: no critical overlap, no clipped primary text, stable toolbars/grids, usable tap targets, and visible focus or selected states.
+- For canvas, WebGL, or game UIs, add pixel or scene-state checks so a blank render cannot pass.
+- Record browser limitations and fallback checks instead of claiming full UX validation when browser evidence is unavailable.
 """,
     "docs/PLANS.md": """{marker}
 # Plans
@@ -230,9 +238,18 @@ DOC_FILES = {
 - Reliability and observability
 - Security and data handling
 
+## Evidence Requirements
+
+- Product correctness scores must cite product contract checks, tests, browser assertions, or documented limitations.
+- UX scores for frontend work must cite browser evidence such as screenshots, DOM/accessibility snapshots, or responsive viewport checks.
+- Reliability scores must cite repeatable commands, smoke checks, logs, traces, or failure-mode tests.
+- Open defects must be logged with `defect-log`; do not hide known failures inside a high numeric score.
+- Treat LLM or human judgment as a summary over evidence, not as the only eval signal.
+
 ## Usage
 
 - Score changes by affected domain and layer.
+- Read `docs/sops/evidence-first-eval-loop.md` before closing work that could regress product behavior, frontend layout, or bug detection.
 - Document recurring weak spots and improvement themes here.
 """,
     "docs/RELIABILITY.md": """{marker}
@@ -447,6 +464,16 @@ Describe the desired first successful experience for a new user of {project_name
 2. Check layout, interaction, loading, error, and empty states.
 3. Verify responsive behavior for the intended breakpoints.
 4. Write reusable findings back to `docs/FRONTEND.md` or `docs/design-docs/`.
+""",
+    "docs/sops/evidence-first-eval-loop.md": """{marker}
+# SOP: Evidence-First Eval Loop
+
+1. Convert product requirements into explicit product contract checks before scoring.
+2. Run deterministic validation first: tests, API smoke checks, CLI checks, browser actions, and state assertions.
+3. For frontend work, capture browser evidence: screenshots, DOM/accessibility snapshots, responsive checks, and layout invariants.
+4. Log every discovered bug or evidence gap with `defect-log` before running `quality-score`.
+5. Resolve defects only after fixes have passing evidence, then rerun validation and `quality-score`.
+6. Report per-case results, failed assertions, artifact paths, and recommended next actions to the user.
 """,
 }
 
@@ -1757,6 +1784,7 @@ def analyze_repo(repo):
             "docs/sops/encode-unseen-knowledge.md",
             "docs/sops/local-observability-feedback-loop.md",
             "docs/sops/chrome-devtools-ui-validation-loop.md",
+            "docs/sops/evidence-first-eval-loop.md",
         ]
         if not (repo / path).exists()
     ]
