@@ -2118,8 +2118,6 @@ def command_init(args):
     answers = load_json(args.answers)
     has_harness = bool(analysis["existing_harness_files"] or analysis["existing_managed_files"])
     effective_refresh = has_harness or args.force
-    gitignore = ensure_gitignore(repo)
-    cleaned = clean_init_state(repo)
     written, skipped, created, refreshed = write_scaffold(
         repo,
         analysis,
@@ -2137,8 +2135,6 @@ def command_init(args):
         "operation": "reconciled" if has_harness else "created",
         "refresh_managed": effective_refresh,
         "force": args.force,
-        "gitignore": gitignore,
-        "cleaned": cleaned,
     }
     write_json(args.output, result)
 
@@ -2336,30 +2332,43 @@ def command_evidence_prune(args):
     write_json(args.output, result)
 
 
-def command_git_clean(args):
+def command_clean(args):
     repo = Path(args.repo).resolve()
     candidates = git_tracked_harness_runtime_files(repo)
+    local_clean_candidates = []
+    for relative_dir in CLEAN_INIT_DIRS:
+        root = repo / relative_dir
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*")):
+            if path.is_file() or path.is_symlink():
+                local_clean_candidates.append(str(path.relative_to(repo)))
     gitignore = None
     removed_from_index = []
+    cleaned = []
     if args.apply:
         gitignore = ensure_gitignore(repo)
+        cleaned = clean_init_state(repo)
         removed_from_index = git_untrack_files(repo, candidates)
         if gitignore["updated"]:
             git_add_paths(repo, [gitignore["path"]])
     result = {
         "repo": str(repo),
         "mode": "apply" if args.apply else "dry-run",
-        "candidate_count": len(candidates),
-        "candidates": candidates,
+        "tracked_candidate_count": len(candidates),
+        "tracked_candidates": candidates,
+        "local_candidate_count": len(local_clean_candidates),
+        "local_candidates": local_clean_candidates,
         "gitignore": gitignore,
         "removed_from_index": removed_from_index,
+        "cleaned": cleaned,
         "next_steps": (
             [
                 "Review staged changes with `git status --short` and `git diff --cached --stat`.",
                 "Commit and push to remove these files from the remote repository.",
             ]
             if args.apply
-            else ["Re-run with `--apply` to update .gitignore and stage git index removals."]
+            else ["Re-run with `--apply` to clean local harness runtime files, update .gitignore, and stage git index removals."]
         ),
     }
     write_json(args.output, result)
@@ -2508,11 +2517,11 @@ def build_parser():
     evidence_prune.add_argument("--output")
     evidence_prune.set_defaults(func=command_evidence_prune)
 
-    git_clean = subparsers.add_parser("git-clean")
-    git_clean.add_argument("--repo", required=True)
-    git_clean.add_argument("--apply", action="store_true")
-    git_clean.add_argument("--output")
-    git_clean.set_defaults(func=command_git_clean)
+    clean = subparsers.add_parser("clean")
+    clean.add_argument("--repo", required=True)
+    clean.add_argument("--apply", action="store_true")
+    clean.add_argument("--output")
+    clean.set_defaults(func=command_clean)
 
     return parser
 

@@ -197,51 +197,14 @@ def test_init_reconciles_existing_harness(tmp_root):
     assert_exists(repo, "docs/sops/evidence-first-eval-loop.md")
 
 
-def test_init_cleans_transient_state_and_gitignore(tmp_root):
-    repo = tmp_root / "clean-init-repo"
-    repo.mkdir()
-    answers = tmp_root / "clean-init-answers.json"
-    write_answers(answers, project_name="clean-init-demo")
-    run_manager("init", "--repo", str(repo), "--answers", str(answers))
-
-    stale_files = [
-        repo / "docs" / "generated" / "canvas-polish-desktop-final.png",
-        repo / "docs" / "generated" / "harness-analysis.json",
-        repo / "docs" / "exec-plans" / "active" / "2026-06-11-old-task.md",
-        repo / "docs" / "exec-plans" / "completed" / "2026-06-11-old-task.md",
-    ]
-    for path in stale_files:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("stale runtime state\n")
-    (repo / "AGENTS.md").write_text("<!-- harness-repo-bootstrap:managed -->\n# stale old marker\n")
-
-    result = run_manager("init", "--repo", str(repo), "--answers", str(answers))
-    cleaned = set(result["cleaned"])
-    for path in stale_files:
-        relative_path = str(path.relative_to(repo))
-        if relative_path not in cleaned:
-            raise AssertionError(f"init should report cleaned transient file: {relative_path}")
-        if path.exists():
-            raise AssertionError(f"init should delete transient file: {relative_path}")
-    assert_exists(repo, "docs/generated/db-schema.md")
-    assert_exists(repo, "docs/exec-plans/active/README.md")
-    assert_exists(repo, "docs/exec-plans/active/_template.md")
-    assert_exists(repo, "docs/exec-plans/completed/README.md")
-    assert_contains(repo, "AGENTS.md", "<!-- harness-engine:managed -->")
-    assert_contains(repo, ".gitignore", "# harness-engine transient files")
-    assert_contains(repo, ".gitignore", ".codex/skills/")
-    assert_contains(repo, ".gitignore", "docs/generated/")
-    if (repo / ".gitignore").read_text().count("# harness-engine transient files") != 1:
-        raise AssertionError("init should maintain exactly one harness .gitignore block")
-
-
-def test_git_clean_untracks_runtime_artifacts(tmp_root):
-    repo = tmp_root / "git-clean-repo"
+def test_clean_removes_runtime_state_and_untracks_artifacts(tmp_root):
+    repo = tmp_root / "clean-repo"
     repo.mkdir()
     subprocess.run(["git", "init"], cwd=repo, text=True, capture_output=True, check=True)
     tracked_files = [
         ".codex/skills/harness-engine/SKILL.md",
         "docs/generated/canvas-polish-desktop-final.png",
+        "docs/generated/harness-analysis.json",
         "docs/exec-plans/active/2026-06-11-old-task.md",
         "docs/exec-plans/completed/2026-06-11-old-task.md",
     ]
@@ -258,15 +221,20 @@ def test_git_clean_untracks_runtime_artifacts(tmp_root):
         check=True,
     )
 
-    dry_run = run_manager("git-clean", "--repo", str(repo))
-    if dry_run["mode"] != "dry-run" or dry_run["candidate_count"] != len(tracked_files):
-        raise AssertionError("git-clean should dry-run tracked runtime artifact candidates")
-    if set(dry_run["candidates"]) != set(tracked_files):
-        raise AssertionError("git-clean candidates should match tracked harness runtime artifacts")
+    dry_run = run_manager("clean", "--repo", str(repo))
+    if dry_run["mode"] != "dry-run" or dry_run["tracked_candidate_count"] != len(tracked_files):
+        raise AssertionError("clean should dry-run tracked runtime artifact candidates")
+    if set(dry_run["tracked_candidates"]) != set(tracked_files):
+        raise AssertionError("clean tracked candidates should match tracked harness runtime artifacts")
+    if "docs/generated/canvas-polish-desktop-final.png" not in set(dry_run["local_candidates"]):
+        raise AssertionError("clean should preview local generated evidence cleanup")
+    for relative_path in tracked_files:
+        if not (repo / relative_path).exists():
+            raise AssertionError("clean dry-run should not delete local files")
 
-    applied = run_manager("git-clean", "--repo", str(repo), "--apply")
+    applied = run_manager("clean", "--repo", str(repo), "--apply")
     if applied["mode"] != "apply" or set(applied["removed_from_index"]) != set(tracked_files):
-        raise AssertionError("git-clean --apply should remove candidates from the git index")
+        raise AssertionError("clean --apply should remove candidates from the git index")
     assert_contains(repo, ".gitignore", ".codex/skills/")
     assert_contains(repo, ".gitignore", "docs/generated/")
     status = subprocess.run(
@@ -278,11 +246,15 @@ def test_git_clean_untracks_runtime_artifacts(tmp_root):
     ).stdout
     for relative_path in tracked_files:
         if f"D  {relative_path}" not in status:
-            raise AssertionError(f"git-clean should stage index deletion for {relative_path}")
-        if not (repo / relative_path).exists():
-            raise AssertionError(f"git-clean should keep local working file for {relative_path}")
+            raise AssertionError(f"clean should stage index deletion for {relative_path}")
+    for relative_path in tracked_files:
+        if relative_path.startswith(".codex/skills/"):
+            if not (repo / relative_path).exists():
+                raise AssertionError(f"clean should keep local skill install file for {relative_path}")
+        elif (repo / relative_path).exists():
+            raise AssertionError(f"clean should delete local runtime file for {relative_path}")
     if "A  .gitignore" not in status:
-        raise AssertionError("git-clean should stage the new .gitignore block")
+        raise AssertionError("clean should stage the new .gitignore block")
 
 
 def test_closed_loop_plan(tmp_root):
@@ -1179,8 +1151,7 @@ EVALS = [
     ("empty-repo-init", test_empty_repo_init),
     ("frontend-analysis", test_frontend_analysis),
     ("init-reconciles-existing-harness", test_init_reconciles_existing_harness),
-    ("init-cleans-transient-state-and-gitignore", test_init_cleans_transient_state_and_gitignore),
-    ("git-clean-untracks-runtime-artifacts", test_git_clean_untracks_runtime_artifacts),
+    ("clean-removes-runtime-state-and-untracks-artifacts", test_clean_removes_runtime_state_and_untracks_artifacts),
     ("closed-loop-plan", test_closed_loop_plan),
     ("phase-continuity-workstream", test_phase_continuity_workstream),
     ("plan-path-canonicalization", test_plan_path_canonicalization),

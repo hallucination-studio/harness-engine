@@ -18,9 +18,7 @@ ask for missing high-impact facts, create the harness files, and keep future wor
 - Creates execution-plan folders for active and completed plans.
 - Adds SOPs for architecture setup, knowledge capture, local observability, and UI validation.
 - Reconciles managed harnesses through the same `init` flow, refreshing managed files and backfilling newly introduced managed files while preserving unmanaged docs.
-- Cleans transient harness runtime state during `init`, including old generated evidence and stale task-plan files.
-- Adds `.gitignore` entries for non-versioned harness runtime files such as `.codex/skills/` and `docs/generated/`.
-- Provides `git-clean` to remove already committed harness runtime files from git tracking so a follow-up commit deletes them from the remote.
+- Provides `clean` to remove transient harness runtime state, add `.gitignore` entries, and untrack already committed harness runtime files so a follow-up commit deletes them from the remote.
 - Enforces a local harness check without assuming the user's project has CI.
 - Previews and optionally removes stale unreferenced generated evidence under `docs/generated/`.
 - Supports durable knowledge closure with stable knowledge IDs and evidence text, so permanent docs can use natural wording instead of duplicated checklist strings.
@@ -113,8 +111,6 @@ The skill should analyze the workspace and run the single workspace entrypoint:
 
 - If the harness is not installed in that repository, `manage_harness.py init` creates it.
 - If a managed harness already exists, `manage_harness.py init` reconciles it by refreshing managed files and backfilling newly introduced managed files.
-- `init` removes stale runtime evidence and task snapshots under `docs/generated/`, `docs/exec-plans/active/`, and `docs/exec-plans/completed/`, then recreates the managed starter files.
-- `init` maintains a `.gitignore` block for `.codex/skills/` and `docs/generated/`.
 - Unmanaged user files are preserved unless `--force` is explicitly used.
 
 The underlying command for both cases is:
@@ -166,8 +162,8 @@ python3 .codex/skills/harness-engine/scripts/manage_harness.py workstream-upsert
 python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo .
 python3 .codex/skills/harness-engine/scripts/manage_harness.py evidence-prune --repo . --older-than-days 14
 python3 .codex/skills/harness-engine/scripts/manage_harness.py evidence-prune --repo . --older-than-days 14 --apply
-python3 .codex/skills/harness-engine/scripts/manage_harness.py git-clean --repo .
-python3 .codex/skills/harness-engine/scripts/manage_harness.py git-clean --repo . --apply
+python3 .codex/skills/harness-engine/scripts/manage_harness.py clean --repo .
+python3 .codex/skills/harness-engine/scripts/manage_harness.py clean --repo . --apply
 ```
 
 The quality gate is intentionally local and repository-owned. It does not require the user's
@@ -181,7 +177,7 @@ Commit harness docs that carry durable repository knowledge: `AGENTS.md`, `ARCHI
 `docs/FRONTEND.md`, `docs/sops/`, `docs/product-specs/`, `docs/design-docs/`,
 `docs/references/`, and intentional execution-plan state.
 
-Do not commit local skill installs or generated evidence by default. `init` adds these ignores:
+Do not commit local skill installs or generated evidence by default. `clean --apply` adds these ignores:
 
 ```gitignore
 # harness-engine transient files
@@ -193,16 +189,16 @@ docs/generated/
 If those files were already committed or pushed, run:
 
 ```bash
-python3 .codex/skills/harness-engine/scripts/manage_harness.py git-clean --repo .
-python3 .codex/skills/harness-engine/scripts/manage_harness.py git-clean --repo . --apply
+python3 .codex/skills/harness-engine/scripts/manage_harness.py clean --repo .
+python3 .codex/skills/harness-engine/scripts/manage_harness.py clean --repo . --apply
 git status --short
 git diff --cached --stat
 git commit -m "Remove harness runtime artifacts from git"
 git push
 ```
 
-`git-clean --apply` uses `git rm --cached`, so it stages removal from git and the remote while
-leaving local working files in place.
+`clean --apply` removes local generated evidence and stale task snapshots, then uses
+`git rm --cached` to stage removal of tracked harness runtime files from git and the remote.
 
 For multi-phase work, `Phase Continuity` and `docs/exec-plans/workstreams.md` form the recovery
 ledger. A plan like `Local Workbench Phase 1` can close only after it records whether the workstream
@@ -289,7 +285,7 @@ These scores describe the current implementation, not an external guarantee.
 | Knowledge, quality, and workstream closure loop | 9.1 / 10 | Stable knowledge IDs plus exact destination evidence reduce noisy doc duplication, `quality-score` rejects missing evidence notes, defects block closure until resolved, and workstreams make phased work recoverable. Future work could move plan state into structured sidecar metadata instead of Markdown parsing. |
 | CLI installer | 8 / 10 | Simple local/global/custom install modes, force replacement, and path discovery. It is intentionally minimal and does not manage Codex runtime configuration. |
 | Generated harness docs | 8.4 / 10 | Covers architecture, plans, reliability, security, frontend policy, issue workflows, references, generated artifacts, and SOPs. The docs now front-load exact knowledge evidence, per-dimension quality notes, and plan placeholder cleanup, but templates still require Codex to tighten project-specific language after generation. |
-| Evaluation coverage | 9 / 10 | `npm test` runs 14 structured eval cases covering empty-repo init, frontend analysis, init reconciliation, init cleanup and gitignore behavior, git cleanup of already tracked runtime artifacts, issue workflow coverage, closed-loop plan behavior, phase continuity, path canonicalization, defect recovery, required quality-score notes, exact knowledge evidence, generated-evidence cleanup, eval report shape, and user-owned doc preservation. A fully automated Codex child-agent E2E would raise this further. |
+| Evaluation coverage | 9 / 10 | `npm test` runs 13 structured eval cases covering empty-repo init, frontend analysis, init reconciliation, clean command behavior for local runtime state and already tracked artifacts, issue workflow coverage, closed-loop plan behavior, phase continuity, path canonicalization, defect recovery, required quality-score notes, exact knowledge evidence, generated-evidence cleanup, eval report shape, and user-owned doc preservation. A fully automated Codex child-agent E2E would raise this further. |
 | Release automation | 8 / 10 | Supports stable release, beta on every main commit, nightly, manual dry-run, artifacts, provenance, and token fallback. npm first-publish/trusted-publishing setup still requires external configuration. |
 | User-project safety | 8.8 / 10 | The skill avoids adding CI to target projects by default, preserves unmanaged files unless forced, and requires evidence-backed closure for defects and durable knowledge. More destructive-change simulation in evals would improve this score. |
 | Overall | 9 / 10 | The skill is now strong enough for regular use: self evals pass across the structured suite, real acceptance covered initial scaffold plus frontend and backend issue workflows, and the main failure modes found during acceptance are now documented and eval-covered. Remaining leverage is automated child-agent E2E coverage and structured plan metadata. |
