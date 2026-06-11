@@ -17,10 +17,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Show publish runtime
+        run: |
+          node --version
+          npm --version
 
       - name: Compute nightly version
         run: |
@@ -38,3 +44,5 @@ jobs:
 
       - name: Publish nightly to npm
         run: npm publish --tag nightly --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
