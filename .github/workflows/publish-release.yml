@@ -1,6 +1,9 @@
 name: Publish Release
 
 on:
+  push:
+    branches:
+      - main
   release:
     types:
       - published
@@ -62,11 +65,30 @@ jobs:
           npm version "$TEST_VERSION" --no-git-tag-version --allow-same-version
           echo "MANUAL_VERSION=${TEST_VERSION}" >> "$GITHUB_ENV"
 
+      - name: Set package version for main snapshot
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          SHORT_SHA="${GITHUB_SHA::7}"
+          SNAPSHOT_VERSION="${BASE_VERSION}-main.${GITHUB_RUN_NUMBER}.${SHORT_SHA}"
+          npm version "$SNAPSHOT_VERSION" --no-git-tag-version --allow-same-version
+          echo "SNAPSHOT_VERSION=${SNAPSHOT_VERSION}" >> "$GITHUB_ENV"
+
       - name: Show package version
         run: node -p "'Publishing harness-engine@' + require('./package.json').version"
 
       - name: Pack package
-        run: npm pack
+        run: |
+          mkdir -p dist
+          npm pack --pack-destination dist
+
+      - name: Upload packed package
+        if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-engine-${{ github.run_number }}
+          path: dist/*.tgz
+          if-no-files-found: error
 
       - name: Publish latest to npm
         if: ${{ github.event_name == 'release' }}
