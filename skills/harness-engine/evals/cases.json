@@ -12,6 +12,14 @@
     "description": "Init should reconcile an existing harness by refreshing managed files and adding newly introduced managed files."
   },
   {
+    "id": "init-cleans-transient-state-and-gitignore",
+    "description": "Init should clean transient generated evidence and task state, then add gitignore entries for non-versioned harness runtime files."
+  },
+  {
+    "id": "git-clean-untracks-runtime-artifacts",
+    "description": "Git cleanup should dry-run by default, update .gitignore, and stage removal of tracked harness runtime artifacts when applied."
+  },
+  {
     "id": "closed-loop-plan",
     "description": "Execution plans should refuse to close until durable knowledge is written back."
   },

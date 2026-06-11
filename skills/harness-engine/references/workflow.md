@@ -27,7 +27,7 @@ Also inspect the analysis for:
 
 Run `sample-answers`, fill the answers, then run `init`.
 
-Use `init` for both first-time adoption and managed-harness reconciliation. It creates a new harness when none exists, and refreshes managed harness files plus backfills newly introduced managed files when an existing managed harness is detected. Unmanaged user files are preserved unless `--force` is explicitly used.
+Use `init` for both first-time adoption and managed-harness reconciliation. It creates a new harness when none exists, refreshes managed harness files plus backfills newly introduced managed files when an existing managed harness is detected, removes stale generated evidence and task-plan snapshots, and maintains the harness `.gitignore` block. Unmanaged user files are preserved unless `--force` is explicitly used.
 
 After the script runs, read the generated docs once and tighten weak generic phrases before handing off.
 
@@ -48,6 +48,7 @@ After the scaffold exists:
 - run `quality-score` after implementation and validation, with evidence notes for every dimension
 - if `quality-score` fails, implement the `## Rework Required` items and score again
 - use `phase-set` and `workstream-upsert` when a plan belongs to phased or resumable work
+- use `git-clean` when harness runtime files were already committed; review dry-run output first, then apply, commit, and push the staged removals
 - use `plan-close` to verify no durable knowledge is left stranded in the active plan
 - before `plan-close`, replace generic plan placeholders with task-specific scope, constraints, steps, validation, and completion notes; delete unused ad hoc durable-knowledge TODOs
 - run `.codex/skills/harness-engine/scripts/manage_harness.py check --repo <target-repo>` before handoff

@@ -5,13 +5,35 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 MANAGED_MARKER = "<!-- harness-engine:managed -->"
+OBSOLETE_MANAGED_MARKERS = [
+    "<!-- harness-repo-bootstrap:managed -->",
+    "<!-- harness-init:managed -->",
+]
 DEFAULT_KNOWLEDGE_PLACEHOLDER = "- [ ] Add durable facts here as they emerge -> <destination-doc>"
 DEFAULT_DEFECT_PLACEHOLDER = "None."
+GITIGNORE_BLOCK_START = "# harness-engine transient files"
+GITIGNORE_BLOCK_END = "# end harness-engine transient files"
+GITIGNORE_ENTRIES = [
+    ".codex/skills/",
+    "docs/generated/",
+]
+CLEAN_INIT_DIRS = [
+    "docs/generated",
+    "docs/exec-plans/active",
+    "docs/exec-plans/completed",
+]
+GIT_CLEAN_PATHS = [
+    ".codex/skills",
+    "docs/generated",
+    "docs/exec-plans/active",
+    "docs/exec-plans/completed",
+]
 PLAN_TEMPLATE = """# Execution Plan: {title}
 
 ## Goal
@@ -673,7 +695,7 @@ def detect_existing_managed_files(repo):
         path = repo / relative_path
         if path.exists():
             try:
-                if is_managed_text(path.read_text()):
+                if is_harness_owned_text(path.read_text()):
                     managed.append(relative_path)
             except UnicodeDecodeError:
                 continue
@@ -738,8 +760,100 @@ def ensure_parent(path):
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
+def ensure_gitignore(repo):
+    path = repo / ".gitignore"
+    existing = path.read_text() if path.exists() else ""
+    block_lines = [GITIGNORE_BLOCK_START, *GITIGNORE_ENTRIES, GITIGNORE_BLOCK_END]
+    block = "\n".join(block_lines)
+    pattern = re.compile(
+        rf"(^|\n){re.escape(GITIGNORE_BLOCK_START)}\n.*?\n{re.escape(GITIGNORE_BLOCK_END)}(?=\n|$)",
+        flags=re.DOTALL,
+    )
+    if pattern.search(existing):
+        updated = pattern.sub(lambda match: match.group(1) + block, existing)
+    else:
+        prefix = existing.rstrip()
+        updated = f"{prefix}\n\n{block}" if prefix else block
+    updated = updated.rstrip() + "\n"
+    changed = updated != existing
+    if changed:
+        path.write_text(updated)
+    return {
+        "path": ".gitignore",
+        "updated": changed,
+        "entries": GITIGNORE_ENTRIES,
+    }
+
+
+def clean_init_state(repo):
+    cleaned = []
+    for relative_dir in CLEAN_INIT_DIRS:
+        root = repo / relative_dir
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*"), reverse=True):
+            if path.is_file() or path.is_symlink():
+                cleaned.append(str(path.relative_to(repo)))
+                path.unlink()
+            elif path.is_dir():
+                try:
+                    path.rmdir()
+                except OSError:
+                    pass
+    return cleaned
+
+
+def git_tracked_harness_runtime_files(repo, roots=None):
+    roots = roots or GIT_CLEAN_PATHS
+    result = subprocess.run(
+        ["git", "-C", str(repo), "ls-files", *roots],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "git ls-files failed")
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def git_untrack_files(repo, paths):
+    if not paths:
+        return []
+    result = subprocess.run(
+        ["git", "-C", str(repo), "rm", "-r", "--cached", "--", *paths],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "git rm --cached failed")
+    return paths
+
+
+def git_add_paths(repo, paths):
+    if not paths:
+        return []
+    result = subprocess.run(
+        ["git", "-C", str(repo), "add", "--", *paths],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "git add failed")
+    return paths
+
+
 def is_managed_text(text):
     return text.startswith(MANAGED_MARKER)
+
+
+def is_obsolete_managed_text(text):
+    return any(text.startswith(marker) for marker in OBSOLETE_MANAGED_MARKERS)
+
+
+def is_harness_owned_text(text):
+    return is_managed_text(text) or is_obsolete_managed_text(text)
 
 
 def slugify(value):
@@ -1580,7 +1694,7 @@ def should_write(path, refresh_managed, force):
     if force:
         return True
     try:
-        is_managed = is_managed_text(path.read_text())
+        is_managed = is_harness_owned_text(path.read_text())
     except UnicodeDecodeError:
         return False
     if refresh_managed and is_managed:
@@ -2004,6 +2118,8 @@ def command_init(args):
     answers = load_json(args.answers)
     has_harness = bool(analysis["existing_harness_files"] or analysis["existing_managed_files"])
     effective_refresh = has_harness or args.force
+    gitignore = ensure_gitignore(repo)
+    cleaned = clean_init_state(repo)
     written, skipped, created, refreshed = write_scaffold(
         repo,
         analysis,
@@ -2021,6 +2137,8 @@ def command_init(args):
         "operation": "reconciled" if has_harness else "created",
         "refresh_managed": effective_refresh,
         "force": args.force,
+        "gitignore": gitignore,
+        "cleaned": cleaned,
     }
     write_json(args.output, result)
 
@@ -2218,6 +2336,35 @@ def command_evidence_prune(args):
     write_json(args.output, result)
 
 
+def command_git_clean(args):
+    repo = Path(args.repo).resolve()
+    candidates = git_tracked_harness_runtime_files(repo)
+    gitignore = None
+    removed_from_index = []
+    if args.apply:
+        gitignore = ensure_gitignore(repo)
+        removed_from_index = git_untrack_files(repo, candidates)
+        if gitignore["updated"]:
+            git_add_paths(repo, [gitignore["path"]])
+    result = {
+        "repo": str(repo),
+        "mode": "apply" if args.apply else "dry-run",
+        "candidate_count": len(candidates),
+        "candidates": candidates,
+        "gitignore": gitignore,
+        "removed_from_index": removed_from_index,
+        "next_steps": (
+            [
+                "Review staged changes with `git status --short` and `git diff --cached --stat`.",
+                "Commit and push to remove these files from the remote repository.",
+            ]
+            if args.apply
+            else ["Re-run with `--apply` to update .gitignore and stage git index removals."]
+        ),
+    }
+    write_json(args.output, result)
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="Manage the harness repo scaffold.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -2360,6 +2507,12 @@ def build_parser():
     evidence_prune.add_argument("--apply", action="store_true")
     evidence_prune.add_argument("--output")
     evidence_prune.set_defaults(func=command_evidence_prune)
+
+    git_clean = subparsers.add_parser("git-clean")
+    git_clean.add_argument("--repo", required=True)
+    git_clean.add_argument("--apply", action="store_true")
+    git_clean.add_argument("--output")
+    git_clean.set_defaults(func=command_git_clean)
 
     return parser
 

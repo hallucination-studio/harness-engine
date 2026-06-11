@@ -14,7 +14,7 @@ Run the packaged script to inspect the target repository before editing files. U
 3. Ask the human only the unresolved, high-impact questions from `human_confirmations`.
 4. Run `python3 scripts/manage_harness.py sample-answers --analysis <analysis.json> --output <answers.json>`.
 5. Fill the placeholders in `answers.json` from the repository and the human's confirmed answers.
-6. Run `python3 scripts/manage_harness.py init --repo <target-repo> --answers <answers.json>`. This is the single workspace entrypoint: it creates a new harness when none exists, and reconciles a managed or partial harness when managed harness files are already present. Reconcile refreshes managed files, backfills newly introduced managed files, and preserves unmanaged user files. Pass `--force` only with explicit user approval.
+6. Run `python3 scripts/manage_harness.py init --repo <target-repo> --answers <answers.json>`. This is the single workspace entrypoint: it creates a new harness when none exists, and reconciles a managed or partial harness when managed harness files are already present. Reconcile refreshes managed files, backfills newly introduced managed files, cleans transient harness runtime state, updates the harness `.gitignore` block, and preserves unmanaged user files. Pass `--force` only with explicit user approval.
 7. If the task is multi-step, run `python3 scripts/manage_harness.py plan-start --repo <target-repo> --slug <task-name> --goal "<goal>"`.
 8. If you learn durable facts during the work, run `python3 scripts/manage_harness.py knowledge-log --repo <target-repo> --plan <plan-file> --fact "<fact>" --destination <durable-doc>` and keep the returned `id`. Use `--fact-file <file>` when the fact contains shell-sensitive characters.
 9. Before closing the task, write those facts into their durable docs.
@@ -28,7 +28,8 @@ Run the packaged script to inspect the target repository before editing files. U
 17. Close the plan with `python3 scripts/manage_harness.py plan-close --repo <target-repo> --plan <plan-file> --summary "<summary>"`.
 18. Before handoff, run `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo <target-repo>` from an installed target repository.
 19. To review stale generated evidence, run `python3 scripts/manage_harness.py evidence-prune --repo <target-repo>` first; it is dry-run by default. Add `--apply` only after checking the candidate list.
-20. After changing this skill, run `python3 evals/run_evals.py` and iterate until it passes.
+20. If harness runtime files were already committed or pushed, run `python3 scripts/manage_harness.py git-clean --repo <target-repo>` first; it is dry-run by default. Add `--apply` to update `.gitignore` and stage `git rm --cached` removals, then commit and push.
+21. After changing this skill, run `python3 evals/run_evals.py` and iterate until it passes.
 
 ## Reading Order
 
@@ -46,7 +47,7 @@ Run the packaged script to inspect the target repository before editing files. U
 
 - Prefer `analyze` before `init`.
 - Prefer the draft, test, evaluate, iterate loop for changes to this skill.
-- Use `init` as the workspace entrypoint for both creation and reconciliation. It refreshes managed harness files when an existing managed harness is detected and preserves unmanaged user files. Use `--force` only when the human accepts overwriting.
+- Use `init` as the workspace entrypoint for both creation and reconciliation. It refreshes managed harness files when an existing managed harness is detected, removes stale generated evidence and old task-plan snapshots, maintains `.gitignore` entries for `.codex/skills/` and `docs/generated/`, and preserves unmanaged user files. Use `--force` only when the human accepts overwriting.
 - Do not overwrite existing files unless the human asked for it or you pass `--force`.
 - Treat the generated files as starting points. After generation, tighten them with repository-specific details instead of leaving placeholders behind.
 - Before plan close, replace or remove task placeholders such as "Define in-scope work", "Add the first concrete step", "Describe how the work will be verified", and any ad hoc durable-knowledge TODOs.
@@ -63,6 +64,7 @@ Run the packaged script to inspect the target repository before editing files. U
 - Use `plan-close` as the final guardrail so plan state, quality score, and durable docs stay synchronized.
 - Use `check` as the local handoff guardrail for user repositories.
 - Use `evidence-prune` as a cleanup preview for old unreferenced files under `docs/generated/`; it never deletes unless `--apply` is present.
+- Use `git-clean` when `.codex/skills/`, `docs/generated/`, or stale `docs/exec-plans/active|completed/` files were already committed. It never changes the git index unless `--apply` is present.
 - Run `python3 evals/run_evals.py` after skill changes, read the structured report, and treat per-case failures as iteration input.
 - Do not add CI to user repositories unless the human explicitly asks for it.
 
@@ -72,7 +74,7 @@ Run the packaged script to inspect the target repository before editing files. U
 - Keep durable knowledge in repo docs, not in chat-only explanations.
 - Keep plans under `docs/exec-plans/active/` and move finished plans to `docs/exec-plans/completed/`.
 - Keep resumable workstreams in `docs/exec-plans/workstreams.md`.
-- Keep generated material under `docs/generated/`.
+- Keep generated evidence under `docs/generated/`; it is local runtime output and is ignored by git unless the human intentionally promotes a specific artifact into tracked docs.
 - Keep external, model-friendly references under `docs/references/`.
 - Keep SOPs explicit and task-triggered so the next agent can follow the same path mechanically.
 
