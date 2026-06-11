@@ -24,6 +24,7 @@ ask for missing high-impact facts, create the harness files, and keep future wor
 - Supports durable knowledge closure with stable knowledge IDs and evidence text, so permanent docs can use natural wording instead of duplicated checklist strings.
 - Enforces a local quality gate for execution plans; failed scores write `## Rework Required` into the plan and block `plan-close`.
 - Tracks resumable workstreams so interrupted features, refactors, reliability work, and cleanup efforts can be recovered from repo state instead of chat history.
+- Generates a frontend/design control plane that tells target projects to own `docs/DESIGN.md` and validate or export it with the official `@google/design.md` package.
 
 ## Why It Exists
 
@@ -65,22 +66,51 @@ Install into a custom skills directory:
 npx @hallucination-studio/harness-engine install --path /path/to/skills
 ```
 
-Replace an existing installed skill:
+Replace an existing installed plugin bundle:
 
 ```bash
 npx @hallucination-studio/harness-engine install --local --force
 ```
 
-Show where the skill would be installed:
+Show where the plugin bundle would be installed:
 
 ```bash
 npx @hallucination-studio/harness-engine where --local
 ```
 
+## Target Project Dependency: Google DESIGN.md
+
+Harness Engine depends on the official Google DESIGN.md workflow for frontend style creation, but
+does not bundle Google source code or install Google's package for the user. Install Google
+DESIGN.md as a dev dependency in each target project that needs frontend style creation,
+validation, diffs, or token exports:
+
+```bash
+npm install --save-dev @google/design.md
+```
+
+Use Google/Stitch to create the real `docs/DESIGN.md` through one of Google's documented paths:
+
+- Create from a prompt in Stitch by describing the intended vibe, product, audience, and interaction feel.
+- Derive from branding in Stitch by providing a brand URL or image.
+- Write it by hand as markdown with optional YAML frontmatter.
+
+Then validate or export from the target repository:
+
+```bash
+npx @google/design.md lint docs/DESIGN.md
+npx @google/design.md export docs/DESIGN.md --format css-tailwind
+npx @google/design.md diff docs/DESIGN.md docs/DESIGN.next.md
+```
+
+Harness Engine's role is to generate the control plane: `docs/FRONTEND.md` tells agents to read
+`docs/DESIGN.md`, defines which project files are controlled by it, and blocks treating the
+placeholder `status: design-source-required` DESIGN.md as an approved visual style.
+
 ## Update An Installed Skill Package
 
-The `npx` installer only installs or replaces the Codex skill package. To update an already
-installed skill, rerun `install` with `--force` in the same install location.
+The `npx` installer installs or replaces the Codex plugin bundle and compatibility skill entries.
+To update an already installed bundle, rerun `install` with `--force` in the same install location.
 
 Replace the local skill install:
 
@@ -148,6 +178,27 @@ The installed skill exposes the underlying script at:
 ```bash
 python3 .codex/skills/harness-engine/scripts/manage_harness.py --help
 ```
+
+For frontend or visual-design work, the generated harness uses `docs/FRONTEND.md` to route agents through `docs/DESIGN.md`. Harness Engine does not generate style, choose themes, extract branding, or vendor Google DESIGN.md code.
+
+Create the real `docs/DESIGN.md` through one of Google's documented paths:
+
+- Create from a prompt in Stitch by describing the intended vibe, product, audience, and interaction feel.
+- Derive from branding in Stitch by providing a brand URL or image.
+- Write it by hand as markdown with optional YAML frontmatter.
+
+Use Google's examples as references, not vendored source: `https://github.com/google-labs-code/design.md/tree/main/examples`.
+
+Install the official package in the target project when the project wants DESIGN.md validation, diffs, or token exports:
+
+```bash
+npm install --save-dev @google/design.md
+npx @google/design.md lint docs/DESIGN.md
+npx @google/design.md export docs/DESIGN.md --format css-tailwind
+npx @google/design.md diff docs/DESIGN.md docs/DESIGN.next.md
+```
+
+`docs/FRONTEND.md` defines which files are controlled by `docs/DESIGN.md`: generated token exports under `docs/design-docs/` or `src/styles/`, Tailwind theme files, global CSS variables, component theme modules, Storybook/theme previews, and UI implementation files that consume those tokens. Agents should read `docs/FRONTEND.md`, then `docs/DESIGN.md`, then generated token exports before changing controlled UI files.
 
 Common commands:
 
@@ -266,6 +317,15 @@ Check npm package contents:
 
 ```bash
 npm run pack:check
+```
+
+Before release, run:
+
+```bash
+npm test
+npm run smoke:install
+npm run pack:check
+git diff --check
 ```
 
 The publish workflows expect an npm token when trusted publishing is not yet configured:

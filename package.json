@@ -19,6 +19,7 @@
   },
   "files": [
     "bin",
+    ".codex-plugin/**",
     "skills/**/SKILL.md",
     "skills/**/agents/**",
     "skills/**/assets/**",

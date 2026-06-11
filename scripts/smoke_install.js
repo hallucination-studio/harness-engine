@@ -31,8 +31,21 @@ const where = execFileSync(process.execPath, [installer, "where", "--path", targ
   encoding: "utf8"
 }).trim();
 
-if (where !== skill) {
+const bundle = path.join(target, "harness-engine-plugin");
+if (where !== bundle) {
   throw new Error(`Unexpected where output: ${where}`);
 }
 
-console.log(JSON.stringify({ status: "pass", installed: skill }, null, 2));
+const bundleSkillFile = path.join(bundle, "skills", "harness-engine", "SKILL.md");
+const pluginManifest = path.join(bundle, ".codex-plugin", "plugin.json");
+
+for (const requiredPath of [
+  bundleSkillFile,
+  pluginManifest
+]) {
+  if (!fs.existsSync(requiredPath)) {
+    throw new Error(`Missing installed bundle file: ${requiredPath}`);
+  }
+}
+
+console.log(JSON.stringify({ status: "pass", installed: bundle, compatibilitySkill: skill }, null, 2));

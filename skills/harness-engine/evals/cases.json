@@ -50,5 +50,25 @@
   {
     "id": "preserve-unmanaged-docs",
     "description": "Existing user-owned harness files should be skipped unless explicitly forced."
+  },
+  {
+    "id": "official-google-design-cli-documented",
+    "description": "Generated design docs should instruct target projects to install and use the official @google/design.md CLI."
+  },
+  {
+    "id": "readme-google-design-dependency-documented",
+    "description": "README should clearly tell users that target projects must install the official @google/design.md dependency."
+  },
+  {
+    "id": "frontend-design-control-plane",
+    "description": "Generated FRONTEND.md should define which files are controlled by docs/DESIGN.md and how agents read them."
+  },
+  {
+    "id": "plugin-does-not-bundle-google-design",
+    "description": "The plugin manifest and installer should bundle harness-engine without a local Google DESIGN.md adapter or upstream source."
+  },
+  {
+    "id": "pack-excludes-google-source",
+    "description": "The npm package dry-run should exclude third-party Google DESIGN.md source while retaining harness-engine files."
   }
 ]
