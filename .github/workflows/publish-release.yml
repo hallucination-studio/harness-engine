@@ -90,6 +90,14 @@ jobs:
           path: dist/*.tgz
           if-no-files-found: error
 
+      - name: Verify npm publish auth
+        if: ${{ github.event_name == 'push' || github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run) }}
+        run: |
+          npm whoami --registry=https://registry.npmjs.org/
+          npm view @hallucination-studio/harness-engine name version --registry=https://registry.npmjs.org/
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish latest to npm
         if: ${{ github.event_name == 'release' }}
         run: npm publish --access public --provenance
