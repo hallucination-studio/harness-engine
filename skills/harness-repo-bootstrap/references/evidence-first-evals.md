@@ -51,6 +51,27 @@ Before implementation, extract product requirements into a checklist that can be
 For every product claim in the final answer, there should be a matching command, test, browser
 assertion, artifact, or explicitly documented limitation.
 
+## Domain Issue Workflows
+
+Issue triage should be domain-routed before implementation. The generated `AGENTS.md` owns the
+current routing table; use it to decide which durable docs and SOPs to read first.
+
+Minimum expectations by domain:
+
+- Product contract: convert requirements, specs, and acceptance criteria into assertions.
+- Frontend/UI: capture browser or local-runtime evidence for the affected workflow and viewport.
+- Backend/runtime: reproduce the behavior narrowly and verify with tests, API smoke checks, logs,
+  or integration evidence.
+- Architecture: document boundary, dependency, data-flow, migration, and compatibility impact.
+- Data/state: verify fixtures, migrations, rollback or compatibility behavior, and data-loss risk.
+- Security/privacy: review sensitive data paths, permissions, auth boundaries, and secret handling.
+- Performance/reliability: collect baseline measurement, repeatable benchmark or smoke evidence,
+  and before/after comparison.
+
+Confirmed defects or evidence gaps should be logged into the active plan before quality scoring.
+Each `quality-score` dimension must include a concrete evidence note. A numeric score without
+evidence is not a valid readiness signal.
+
 ## Frontend Checks
 
 For frontend work, use browser evidence instead of relying on a screenshot glance:

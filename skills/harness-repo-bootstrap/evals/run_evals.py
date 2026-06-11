@@ -63,6 +63,27 @@ def assert_contains(repo, relative_path, needle):
         raise AssertionError(f"Expected {relative_path} to contain {needle!r}")
 
 
+def quality_note_args(
+    product="Product behavior was validated by the eval case.",
+    ux="User/operator workflow evidence was validated by the eval case.",
+    architecture="Architecture and plan state were validated by the eval case.",
+    reliability="Repeatable validation evidence was produced by the eval case.",
+    security="Security and data-handling assumptions were checked by the eval case.",
+):
+    return [
+        "--product-note",
+        product,
+        "--ux-note",
+        ux,
+        "--architecture-note",
+        architecture,
+        "--reliability-note",
+        reliability,
+        "--security-note",
+        security,
+    ]
+
+
 def test_empty_repo_init(tmp_root):
     repo = tmp_root / "empty-repo"
     repo.mkdir()
@@ -98,17 +119,25 @@ def test_empty_repo_init(tmp_root):
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/workstreams.md")
     assert_contains(repo, "AGENTS.md", "docs/sops/")
     assert_contains(repo, "AGENTS.md", ".codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check")
-    assert_contains(repo, "AGENTS.md", "## Frontend Issue Workflow")
-    assert_contains(repo, "AGENTS.md", "Read `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/sops/evidence-first-eval-loop.md`")
-    assert_contains(repo, "AGENTS.md", "Convert the issue into product/UX assertions or a regression case")
+    assert_contains(repo, "AGENTS.md", "## Issue Workflows")
+    assert_contains(repo, "AGENTS.md", "Product contract or acceptance drift")
+    assert_contains(repo, "AGENTS.md", "Backend, API, runtime behavior, background jobs, or integrations")
+    assert_contains(repo, "AGENTS.md", "Architecture boundaries, layering, data flow, or dependency direction")
+    assert_contains(repo, "AGENTS.md", "Data, state, migrations, cache, queues, or file formats")
+    assert_contains(repo, "AGENTS.md", "Security, privacy, auth, authorization, secrets, or sensitive data")
+    assert_contains(repo, "AGENTS.md", "Performance, capacity, timeout, resource use, or availability")
+    assert_contains(repo, "AGENTS.md", "Convert the issue into assertions, tests, smoke checks, or a regression case")
     assert_contains(repo, "AGENTS.md", "Log confirmed defects or missing evidence with `defect-log`")
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Evidence Requirements")
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Treat LLM or human judgment as a summary over evidence")
+    assert_contains(repo, "docs/QUALITY_SCORE.md", "Backend and runtime scores must cite")
+    assert_contains(repo, "docs/QUALITY_SCORE.md", "Architecture scores must cite")
+    assert_contains(repo, "docs/QUALITY_SCORE.md", "Security scores must cite")
     assert_contains(repo, "docs/FRONTEND.md", "Evidence For Meaningful UI Work")
     assert_contains(repo, "docs/FRONTEND.md", "Define and verify layout invariants")
     assert_contains(repo, "docs/FRONTEND.md", "preserve the primary task area")
     assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Report per-case results")
-    assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "For frontend issue reports")
+    assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Read the Issue Workflows in `AGENTS.md`")
 
 
 def test_frontend_analysis(tmp_root):
@@ -242,6 +271,9 @@ def test_closed_loop_plan(tmp_root):
         "8",
         "--architecture-note",
         "Plan closure needs a deterministic quality gate before handoff",
+        *quality_note_args(
+            architecture="Plan closure needs a deterministic quality gate before handoff",
+        ),
         expect_success=False,
     )
     if failing_score["status"] != "fail":
@@ -270,10 +302,10 @@ def test_closed_loop_plan(tmp_root):
         "8",
         "--security-data-handling",
         "8",
-        "--product-note",
-        "Requested behavior is complete",
-        "--architecture-note",
-        "Plan closure now has a deterministic quality gate",
+        *quality_note_args(
+            product="Requested behavior is complete",
+            architecture="Plan closure now has a deterministic quality gate",
+        ),
     )
     if passing_score["status"] != "pass":
         raise AssertionError("Scores at or above the minimum should pass")
@@ -368,6 +400,9 @@ def test_closed_loop_plan(tmp_root):
         "8",
         "--security-data-handling",
         "8",
+        *quality_note_args(
+            architecture="Id-based evidence closure was validated against ARCHITECTURE.md",
+        ),
     )
     plan_text = id_plan_path.read_text()
     if id_fact in (repo / "ARCHITECTURE.md").read_text():
@@ -461,6 +496,10 @@ def test_phase_continuity_workstream(tmp_root):
         "8",
         "--security-data-handling",
         "8",
+        *quality_note_args(
+            product="Phase 1 plan state was validated.",
+            architecture="Workstream continuity was validated.",
+        ),
     )
     close_without_continuity = run_manager(
         "plan-close",
@@ -590,6 +629,9 @@ def test_plan_path_canonicalization(tmp_root):
         "8",
         "--security-data-handling",
         "8",
+        *quality_note_args(
+            architecture="Canonical plan path normalization was validated.",
+        ),
     )
     run_manager(
         "workstream-upsert",
@@ -697,6 +739,10 @@ def test_defect_recovery_loop(tmp_root):
         "10",
         "--security-data-handling",
         "10",
+        *quality_note_args(
+            product="Open Snake defect remains unresolved.",
+            reliability="Open defect must block scoring despite high numeric values.",
+        ),
         expect_success=False,
     )
     if score_with_open_defect["status"] != "fail" or defect_id not in score_with_open_defect["open_defects"]:
@@ -751,6 +797,10 @@ def test_defect_recovery_loop(tmp_root):
         "9",
         "--security-data-handling",
         "10",
+        *quality_note_args(
+            product="Snake tail-cell defect was resolved with passing test evidence.",
+            reliability="Defect recovery was validated with fresh passing evidence.",
+        ),
     )
     if passing_score["status"] != "pass":
         raise AssertionError("quality-score should pass after defects are resolved")
@@ -769,6 +819,80 @@ def test_defect_recovery_loop(tmp_root):
     completed_text = completed_plan.read_text()
     if "- [x] Add durable facts here as they emerge" in completed_text:
         raise AssertionError("plan-close should not mark the default knowledge placeholder as completed")
+
+
+def test_quality_score_requires_notes(tmp_root):
+    repo = tmp_root / "quality-notes-repo"
+    repo.mkdir()
+    answers = tmp_root / "quality-notes-answers.json"
+    write_answers(answers, project_name="quality-notes-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "quality-notes",
+        "--goal",
+        "Validate quality-score evidence notes are required",
+    )
+    relative_plan = str(Path(plan_result["plan"]).resolve().relative_to(repo.resolve()))
+    missing_notes = run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "9",
+        "--ux-operator-clarity",
+        "9",
+        "--architecture-maintainability",
+        "9",
+        "--reliability-observability",
+        "9",
+        "--security-data-handling",
+        "9",
+        expect_success=False,
+    )
+    if missing_notes["reason"] != "missing-quality-notes":
+        raise AssertionError("quality-score should fail with a missing-quality-notes reason")
+    if len(missing_notes["missing_notes"]) != 5:
+        raise AssertionError("quality-score should name every dimension missing an evidence note")
+    arguments = {item["argument"] for item in missing_notes["missing_notes"]}
+    if "--product-note" not in arguments or "--security-note" not in arguments:
+        raise AssertionError("quality-score should name the missing note arguments")
+
+    passing_score = run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "9",
+        "--ux-operator-clarity",
+        "9",
+        "--architecture-maintainability",
+        "9",
+        "--reliability-observability",
+        "9",
+        "--security-data-handling",
+        "9",
+        *quality_note_args(
+            product="Product assertions were checked.",
+            ux="User workflow evidence was checked.",
+            architecture="Architecture evidence was checked.",
+            reliability="Validation command evidence was checked.",
+            security="Security evidence was checked.",
+        ),
+    )
+    if passing_score["status"] != "pass":
+        raise AssertionError("quality-score should pass when all evidence notes are present")
+    plan_text = Path(plan_result["plan"]).read_text()
+    if "No note provided" in plan_text:
+        raise AssertionError("quality-score should not write placeholder notes when evidence is required")
 
 
 def test_eval_report_shape(tmp_root):
@@ -817,6 +941,7 @@ EVALS = [
     ("phase-continuity-workstream", test_phase_continuity_workstream),
     ("plan-path-canonicalization", test_plan_path_canonicalization),
     ("defect-recovery-loop", test_defect_recovery_loop),
+    ("quality-score-requires-notes", test_quality_score_requires_notes),
     ("eval-report-shape", test_eval_report_shape),
     ("preserve-unmanaged-docs", test_preserve_unmanaged_docs),
 ]

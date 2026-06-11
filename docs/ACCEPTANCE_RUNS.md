@@ -162,3 +162,61 @@ The installed skill was then validated directly through its packaged CLI in the 
 Pass with environment limitation.
 
 The package gates, installed-skill behavior, structured eval output, evidence-first generated docs, defect blocking, defect resolution, plan closure, and final harness check all passed. The only blocked part was spawning a real Codex child agent, which failed before task execution because of a local app-server permission error.
+
+## 2026-06-11 Issue Workflows And Quality Notes Acceptance
+
+### Scenario
+
+- Source package: local checkout at `/Users/murphy/code/github/harness-engine`.
+- Target repository: `/tmp/harness-snake-issue-workflows-ebeUCt`.
+- Task: validate that the generated Issue Workflows route frontend/backend issue handling through
+  the right docs, evidence, defect state, and quality gate in a frontend/backend separated Snake
+  project with a Go backend.
+
+### Package Gates
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| `npm test` | Pass | 9/9 evals passed, including `quality-score-requires-notes`. |
+| `npm run smoke:install` | Pass | Skill installed into a temporary local skills directory. |
+| `npm run pack:check` | Pass | Ran with `npm_config_cache=/tmp/harness-engine-npm-cache`; package dry-run included the updated skill sources and references. |
+
+### Target App And Harness Validation
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Frontend/backend project exists | Pass | Target repo contains a Go backend, static browser frontend, harness docs, and completed execution plans. |
+| Backend tests | Pass | `go test ./...` passed. |
+| Frontend static checks | Pass | `scripts/check_frontend.sh` passed. |
+| API/browser smoke | Pass | `SNAKE_SMOKE_PORT=18081 scripts/smoke.sh` passed and wrote evidence under `docs/generated/evidence/`. |
+| Browser DOM verification | Pass | In-app browser verified title, score, status, 144 board cells, snake cells, food cell, and controls at `http://127.0.0.1:18082`. |
+| Harness check | Pass | `manage_harness.py check --repo .` returned `issue_count: 0`. |
+
+### Issue Workflow Results
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Domain routing generated | Pass | `AGENTS.md` includes Issue Workflows for product, frontend, backend, architecture, data/state, security, and performance/reliability issues. |
+| Frontend issue workflow | Pass | Frontend validation required browser or local-runtime evidence across relevant workflows and viewports rather than only subjective review. |
+| Backend issue workflow | Pass | Backend validation required narrow reproduction, tests/API smoke checks, logs, and failure-mode evidence. |
+| Defect state gates quality | Pass | Confirmed defects and evidence gaps are recorded through `defect-log`; unresolved defects block `quality-score`, `plan-close`, and `check`. |
+| Evidence notes required | Pass | `quality-score` failed with `reason: missing-quality-notes` when notes were absent and named every missing dimension. |
+| Evidence-backed quality passes | Pass | Re-running `quality-score` with product, UX, architecture, reliability, and security evidence notes passed at average `9.0`. |
+
+### Findings
+
+- The previous Issue Workflows were too frontend-focused for later backend and architecture issue
+  prompts. The generated router now covers backend/API/runtime, architecture boundaries, data/state,
+  security/privacy, and performance/reliability domains.
+- Numeric quality scores were still possible without enough evidence. `quality-score` now requires
+  evidence notes by default, with `--allow-empty-notes` only as an explicit escape hatch.
+- Acceptance planning now includes a second pass that asks Codex concrete frontend and backend issue
+  questions and verifies that fixes consult the right domain docs and pass the feature quality gate.
+
+### Acceptance Decision
+
+Pass.
+
+The installed skill now validates both initial project creation and later issue handling: generated
+Issue Workflows route frontend and backend problems through domain docs, reproduction evidence,
+defect state, and an evidence-backed quality gate before handoff.

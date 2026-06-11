@@ -96,18 +96,28 @@ Read this file first, then follow the linked docs.
 - Read `docs/FRONTEND.md` for UI or terminal interface changes.
 - Read the matching file in `docs/sops/` before architecture changes, UI validation, observability work, evidence-first evals, or knowledge capture.
 
-## Frontend Issue Workflow
+## Issue Workflows
 
-For any frontend, UI, layout, interaction, responsive, canvas, visual state, or design fidelity
-question, do not answer from visual intuition alone. Use this workflow before judging or fixing:
+For any user-reported issue, classify the domain first, read the listed files, then reproduce,
+fix, and validate with evidence before judging the result.
 
-- Read `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/sops/evidence-first-eval-loop.md`.
-- Inspect the relevant route, component, viewport, and user workflow.
-- Reproduce the issue with browser or local-runtime evidence when available; cover mobile and desktop when responsive behavior is involved.
+| Domain | Read First | Required Evidence |
+| --- | --- | --- |
+| Product contract or acceptance drift | `docs/PRODUCT_SENSE.md`, `docs/product-specs/`, `docs/sops/evidence-first-eval-loop.md` | Product assertions, acceptance checks, or documented limitation |
+| Frontend, UI, layout, interaction, responsive, canvas, visual state, or design fidelity | `docs/FRONTEND.md`, `docs/DESIGN.md`, `docs/sops/evidence-first-eval-loop.md` | Browser or local-runtime evidence across relevant workflows and viewports |
+| Backend, API, runtime behavior, background jobs, or integrations | `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/sops/local-observability-feedback-loop.md` | Narrow reproduction, tests or API smoke checks, logs, and failure-mode evidence |
+| Architecture boundaries, layering, data flow, or dependency direction | `ARCHITECTURE.md`, `docs/PLANS.md`, `docs/sops/layered-domain-architecture-setup.md` | Boundary map, tradeoff notes, migration or compatibility plan, and validation path |
+| Data, state, migrations, cache, queues, or file formats | `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md` | Fixtures or migration checks, rollback/compatibility evidence, and data-loss risk notes |
+| Security, privacy, auth, authorization, secrets, or sensitive data | `docs/SECURITY.md`, `ARCHITECTURE.md` | Threat check, sensitive-data path, permission test, and secret-handling evidence |
+| Performance, capacity, timeout, resource use, or availability | `docs/RELIABILITY.md`, `ARCHITECTURE.md`, `docs/sops/local-observability-feedback-loop.md` | Baseline measurement, repeatable benchmark or smoke check, and before/after evidence |
+
+For each issue:
+
+- Inspect the relevant code path, runtime path, and user/operator workflow.
 - If a code change is needed and no active plan exists, create one with `plan-start`.
-- Convert the issue into product/UX assertions or a regression case before changing code.
+- Convert the issue into assertions, tests, smoke checks, or a regression case before changing code.
 - Log confirmed defects or missing evidence with `defect-log`; unresolved defects must block `quality-score`, `plan-close`, and handoff.
-- Verify the fix against the same workflow and viewport evidence before claiming it is resolved.
+- Verify the fix against the same workflow and evidence type before claiming it is resolved.
 
 ## Repository Focus
 
@@ -256,14 +266,20 @@ DOC_FILES = {
 
 - Product correctness scores must cite product contract checks, tests, browser assertions, or documented limitations.
 - UX scores for frontend work must cite browser evidence such as screenshots, DOM/accessibility snapshots, or responsive viewport checks.
+- Backend and runtime scores must cite narrow reproductions, tests, API smoke checks, logs, or integration evidence.
+- Architecture scores must cite boundary, dependency, data-flow, migration, or compatibility evidence.
+- Data and state scores must cite fixtures, migration checks, rollback checks, or data-loss risk analysis.
+- Security scores must cite threat checks, permission tests, sensitive-data path review, or secret-handling evidence.
+- Performance and reliability scores must cite baseline measurements, repeatable checks, failure-mode tests, or before/after evidence.
 - Reliability scores must cite repeatable commands, smoke checks, logs, traces, or failure-mode tests.
+- Every quality-score dimension requires a concrete evidence note; do not leave score notes empty.
 - Open defects must be logged with `defect-log`; do not hide known failures inside a high numeric score.
 - Treat LLM or human judgment as a summary over evidence, not as the only eval signal.
 
 ## Usage
 
 - Score changes by affected domain and layer.
-- Read `docs/sops/evidence-first-eval-loop.md` before closing work that could regress product behavior, frontend layout, or bug detection.
+- Read `AGENTS.md` Issue Workflows and `docs/sops/evidence-first-eval-loop.md` before closing work that could regress product behavior, frontend layout, backend behavior, architecture boundaries, data safety, security, performance, or bug detection.
 - Document recurring weak spots and improvement themes here.
 """,
     "docs/RELIABILITY.md": """{marker}
@@ -484,11 +500,12 @@ Describe the desired first successful experience for a new user of {project_name
 
 1. Convert product requirements into explicit product contract checks before scoring.
 2. Run deterministic validation first: tests, API smoke checks, CLI checks, browser actions, and state assertions.
-3. For frontend work, capture browser evidence: screenshots, DOM/accessibility snapshots, responsive checks, and layout invariants.
-4. For frontend issue reports, read `docs/FRONTEND.md` and `docs/DESIGN.md`, reproduce the relevant workflow and viewport, then turn the finding into assertions or a regression case.
-5. Log every discovered bug or evidence gap with `defect-log` before running `quality-score`.
-6. Resolve defects only after fixes have passing evidence, then rerun validation and `quality-score`.
-7. Report per-case results, failed assertions, artifact paths, and recommended next actions to the user.
+3. Read the Issue Workflows in `AGENTS.md` and the domain docs named there before judging or fixing.
+4. For frontend work, capture browser evidence: screenshots, DOM/accessibility snapshots, responsive checks, and layout invariants.
+5. For backend, architecture, data, security, and performance work, capture the domain evidence named in `AGENTS.md`.
+6. Log every discovered bug or evidence gap with `defect-log` before running `quality-score`.
+7. Resolve defects only after fixes have passing evidence, then rerun validation and `quality-score`.
+8. Report per-case results, failed assertions, artifact paths, and recommended next actions to the user.
 """,
 }
 
@@ -542,6 +559,13 @@ QUALITY_DIMENSIONS = [
     ("reliability_observability", "Reliability and observability"),
     ("security_data_handling", "Security and data handling"),
 ]
+QUALITY_NOTE_ARGS = {
+    "product_correctness": "product-note",
+    "ux_operator_clarity": "ux-note",
+    "architecture_maintainability": "architecture-note",
+    "reliability_observability": "reliability-note",
+    "security_data_handling": "security-note",
+}
 
 
 def detect_languages(files):
@@ -1128,6 +1152,20 @@ def update_quality_gate(plan_path, scores, notes, minimum):
         "low_dimensions": low_dimensions,
         "open_defects": [defect["id"] for defect in open_defects],
     }
+
+
+def missing_quality_notes(notes):
+    missing = []
+    for key, label in QUALITY_DIMENSIONS:
+        if not (notes.get(key) or "").strip():
+            missing.append(
+                {
+                    "dimension": label,
+                    "argument": "--" + QUALITY_NOTE_ARGS[key],
+                    "message": f"Provide evidence for {label}.",
+                }
+            )
+    return missing
 
 
 def assert_quality_gate_passed(plan_text):
@@ -1986,6 +2024,18 @@ def command_quality_score(args):
         "reliability_observability": args.reliability_note,
         "security_data_handling": args.security_note,
     }
+    missing_notes = missing_quality_notes(notes)
+    if missing_notes and not args.allow_empty_notes:
+        result = {
+            "status": "fail",
+            "repo": str(repo),
+            "plan": str(plan_path),
+            "reason": "missing-quality-notes",
+            "message": "quality-score requires evidence notes for every dimension.",
+            "missing_notes": missing_notes,
+        }
+        write_json(args.output, result)
+        raise SystemExit(1)
     result = update_quality_gate(plan_path, scores, notes, args.minimum)
     result.update({"repo": str(repo), "plan": str(plan_path)})
     write_json(args.output, result)
@@ -2163,6 +2213,7 @@ def build_parser():
     quality_score.add_argument("--architecture-note", default="")
     quality_score.add_argument("--reliability-note", default="")
     quality_score.add_argument("--security-note", default="")
+    quality_score.add_argument("--allow-empty-notes", action="store_true")
     quality_score.add_argument("--output")
     quality_score.set_defaults(func=command_quality_score)
 

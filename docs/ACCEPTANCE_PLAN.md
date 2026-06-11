@@ -69,6 +69,43 @@ Passing criteria:
 - The target app validates with its own commands, including backend tests and frontend syntax checks.
 - If a browser is available, the UI is opened and key user-visible states are verified. If browser automation is blocked, the limitation is recorded and API/static smoke checks must still pass.
 
+## Issue Workflow Acceptance
+
+After the target project exists, run a second Codex acceptance pass in the same target repository.
+This pass verifies that generated `AGENTS.md` Issue Workflows shape later issue triage even when the
+user does not explicitly name the skill.
+
+Use prompts that report concrete frontend and backend problems, for example:
+
+- Frontend: report a mobile layout, text wrapping, interaction, canvas, or visual-state bug.
+- Backend: report an API/runtime/state-transition bug, failing smoke check, or server behavior drift.
+
+Each issue prompt must require Codex to answer and fix the issue inside the target repository, not
+only explain the likely cause. Passing criteria:
+
+- Codex reads `AGENTS.md` and the matching domain docs before changing code.
+- Frontend issues read `docs/FRONTEND.md`, `docs/DESIGN.md` when present, and
+  `docs/sops/evidence-first-eval-loop.md`.
+- Backend issues read `ARCHITECTURE.md`, `docs/RELIABILITY.md`, and
+  `docs/sops/local-observability-feedback-loop.md`.
+- Codex starts or updates an execution plan for the issue.
+- The issue is converted into a reproduction, assertion, test, API smoke check, browser check, or
+  documented limitation before the fix is accepted.
+- Confirmed bugs or missing evidence are logged with `defect-log`, so unresolved work blocks
+  `quality-score`, `plan-close`, and `check`.
+- Fix validation uses the same evidence family as the issue: browser/DOM/responsive evidence for
+  frontend issues, and tests/API smoke/log evidence for backend issues.
+- `quality-score` is run with concrete evidence notes for every dimension; missing notes must fail
+  the gate.
+- If `quality-score` fails, the generated `## Rework Required` items are implemented before
+  `plan-close`.
+- The final handoff includes the files read, commands run, evidence artifact paths, defect IDs, and
+  quality-gate result.
+
+Issue workflow acceptance fails if Codex fixes code without consulting the domain docs, skips
+reproduction evidence, leaves a confirmed defect outside plan state, or passes the quality gate with
+only numeric scores and no evidence notes.
+
 ## Review Rubric
 
 Score the result from `0` to `10` in each area:
