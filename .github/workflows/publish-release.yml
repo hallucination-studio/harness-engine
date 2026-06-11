@@ -23,15 +23,14 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: Validate release tag matches package version
+      - name: Set package version from release tag
         if: ${{ github.event_name == 'release' }}
         run: |
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
           RELEASE_TAG="${GITHUB_REF_NAME#v}"
-          if [ "$PACKAGE_VERSION" != "$RELEASE_TAG" ]; then
-            echo "package.json version ($PACKAGE_VERSION) does not match release tag ($RELEASE_TAG)"
-            exit 1
-          fi
+          npm version "$RELEASE_TAG" --no-git-tag-version --allow-same-version
+
+      - name: Show package version
+        run: node -p "'Publishing harness-engine@' + require('./package.json').version"
 
       - name: Pack package
         run: npm pack
