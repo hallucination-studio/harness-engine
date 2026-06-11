@@ -11,6 +11,7 @@ Execution plans are required for multi-step work, risky changes, or tasks that n
 
 ## Location
 
+- Workstream recovery ledger: `docs/exec-plans/workstreams.md`
 - Active: `docs/exec-plans/active/`
 - Completed: `docs/exec-plans/completed/`
 
@@ -23,20 +24,23 @@ Execution plans are required for multi-step work, risky changes, or tasks that n
 - validation
 - quality gate
 - rework required
+- phase continuity
 - durable knowledge to capture
 - completion notes
 
 ## Operating Rule
 
-Update the active plan during the work. When the work is done, score it, complete any required rework, move it to `completed`, and leave behind any durable facts in the right permanent docs.
+Update the active plan during the work. When the work is done, score it, complete any required rework, record phase continuity for resumable work, move it to `completed`, and leave behind any durable facts in the right permanent docs.
 
 ## Closed Loop
 
 Use the script, not ad hoc manual edits, for the lifecycle:
 
 - `plan-start`: create a new active execution plan
-- `knowledge-log`: append a durable fact that still needs to be written into permanent docs and return its stable id
-- `knowledge-mark-written`: verify and mark a logged fact as written into its permanent doc; prefer `--id <knowledge-id> --evidence "<doc text>"`, and use `--append` only to append the exact fact first
+- `knowledge-log`: append a durable fact that still needs to be written into permanent docs and return its stable id; use `--fact-file` for shell-sensitive facts
+- `knowledge-mark-written`: verify and mark a logged fact as written into its permanent doc; prefer `--id <knowledge-id> --evidence-file <file>` for shell-sensitive evidence, and use `--append` only to append the exact fact first
 - `quality-score`: write a scored quality gate into the plan; if it fails, the generated `## Rework Required` section becomes the next implementation input
-- `plan-close`: refuse to close cleanly until the quality gate passes and the listed knowledge items are marked as written to durable docs
+- `phase-set`: declare whether phased or resumable work continues, pauses, stops, or completes
+- `workstream-upsert`: update `docs/exec-plans/workstreams.md` so interrupted work can be recovered without chat history
+- `plan-close`: refuse to close cleanly until the quality gate passes, phase continuity is recorded, and the listed knowledge items are marked as written to durable docs
 - `check`: run a local handoff check without requiring target-repo CI

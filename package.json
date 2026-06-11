@@ -19,7 +19,13 @@
   },
   "files": [
     "bin",
-    "skills"
+    "skills/**/SKILL.md",
+    "skills/**/agents/**",
+    "skills/**/assets/**",
+    "skills/**/evals/*.json",
+    "skills/**/evals/*.py",
+    "skills/**/references/**",
+    "skills/**/scripts/*.py"
   ],
   "license": "MIT"
 }

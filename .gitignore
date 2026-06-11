@@ -1,2 +1,5 @@
 node_modules/
+.codex/
 *.tgz
+__pycache__/
+*.py[cod]

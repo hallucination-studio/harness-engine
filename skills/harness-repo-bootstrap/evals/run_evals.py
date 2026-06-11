@@ -67,6 +67,10 @@ def test_empty_repo_init(tmp_root):
         raise AssertionError("Analysis should report missing exec-plan state")
     if not analysis["missing_sops"]:
         raise AssertionError("Analysis should report missing SOPs")
+    nested_output = tmp_root / "nested" / "generated" / "analysis.json"
+    run_manager("analyze", "--repo", str(repo), "--output", str(nested_output))
+    if not nested_output.exists():
+        raise AssertionError("analyze --output should create missing parent directories")
 
     run_manager("init", "--repo", str(repo), "--answers", str(answers))
     for relative_path in [
@@ -74,12 +78,14 @@ def test_empty_repo_init(tmp_root):
         "ARCHITECTURE.md",
         "docs/PLANS.md",
         "docs/QUALITY_SCORE.md",
+        "docs/exec-plans/workstreams.md",
         "docs/exec-plans/active/_template.md",
         "docs/exec-plans/completed/README.md",
         "docs/sops/encode-unseen-knowledge.md",
     ]:
         assert_exists(repo, relative_path)
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/active/")
+    assert_contains(repo, "AGENTS.md", "docs/exec-plans/workstreams.md")
     assert_contains(repo, "AGENTS.md", "docs/sops/")
     assert_contains(repo, "AGENTS.md", ".codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check")
 
@@ -310,6 +316,8 @@ def test_closed_loop_plan(tmp_root):
         handle.write(
             "\nThe `main` package owns keyboard input and rendering, while `game` contains pure state transitions.\n"
         )
+    evidence_file = tmp_root / "evidence.txt"
+    evidence_file.write_text("main package owns keyboard input and rendering\n")
     run_manager(
         "knowledge-mark-written",
         "--repo",
@@ -318,8 +326,8 @@ def test_closed_loop_plan(tmp_root):
         id_relative_plan,
         "--id",
         log_result["id"],
-        "--evidence",
-        "main package owns keyboard input and rendering",
+        "--evidence-file",
+        str(evidence_file),
     )
     run_manager(
         "quality-score",
@@ -396,10 +404,140 @@ def test_preserve_unmanaged_docs(tmp_root):
     assert_exists(repo, "docs/PLANS.md")
 
 
+def test_phase_continuity_workstream(tmp_root):
+    repo = tmp_root / "phase-repo"
+    repo.mkdir()
+    answers = tmp_root / "phase-answers.json"
+    write_answers(answers, project_name="phase-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "local-workbench-phase-1",
+        "--goal",
+        "Complete Local Workbench Phase 1",
+    )
+    plan_path = Path(plan_result["plan"])
+    relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "8",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+    )
+    close_without_continuity = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Phase 1 done",
+        expect_success=False,
+    )
+    if close_without_continuity:
+        raise AssertionError("plan-close should not produce JSON when phase continuity blocks closure")
+    check_without_continuity = run_manager("check", "--repo", str(repo), expect_success=False)
+    issue_codes = {issue["code"] for issue in check_without_continuity["issues"]}
+    if "phase-mode-not-declared" not in issue_codes:
+        raise AssertionError("check should flag phased plans that do not declare continuation")
+
+    run_manager(
+        "phase-set",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--mode",
+        "multi-phase",
+        "--workstream",
+        "local-workbench",
+        "--current-phase",
+        "1",
+        "--next-phase",
+        "2",
+        "--continuation",
+        "docs/exec-plans/workstreams.md#local-workbench",
+        "--next-action",
+        "Create Phase 2 plan for command adapters",
+        "--resume-notes",
+        "Read completed Phase 1 plan and ARCHITECTURE.md before continuing",
+    )
+    close_without_workstream = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Phase 1 done",
+        expect_success=False,
+    )
+    if close_without_workstream:
+        raise AssertionError("plan-close should not allow a workstreams continuation without a ledger entry")
+    run_manager(
+        "workstream-upsert",
+        "--repo",
+        str(repo),
+        "--id",
+        "local-workbench",
+        "--status",
+        "active",
+        "--current-plan",
+        relative_plan,
+        "--next-action",
+        "Create Phase 2 plan for command adapters",
+        "--goal",
+        "Refactor local workbench into a maintainable terminal workflow",
+        "--resume-notes",
+        "Read completed Phase 1 plan and ARCHITECTURE.md before continuing",
+    )
+    assert_contains(repo, "docs/exec-plans/workstreams.md", "local-workbench")
+    assert_contains(repo, "docs/exec-plans/workstreams.md", "Create Phase 2 plan for command adapters")
+    close_result = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Phase 1 done; Phase 2 recovery is recorded in workstreams.",
+    )
+    if close_result["status"] != "closed":
+        raise AssertionError("Phased plan should close after continuity and workstream recovery are recorded")
+    completed_relative_plan = "docs/exec-plans/completed/" + plan_path.name
+    workstreams_text = (repo / "docs/exec-plans/workstreams.md").read_text()
+    if completed_relative_plan not in workstreams_text:
+        raise AssertionError("plan-close should update workstream ledger to the completed plan path")
+    if relative_plan in workstreams_text:
+        raise AssertionError("workstream ledger should not keep stale active plan references after plan-close")
+    broken = workstreams_text.replace(completed_relative_plan, relative_plan)
+    (repo / "docs/exec-plans/workstreams.md").write_text(broken)
+    broken_check = run_manager("check", "--repo", str(repo), expect_success=False)
+    broken_codes = {issue["code"] for issue in broken_check["issues"]}
+    if "missing-workstream-plan-reference" not in broken_codes:
+        raise AssertionError("check should fail when workstream ledger points to a missing plan")
+
+
 EVALS = [
     ("empty-repo-init", test_empty_repo_init),
     ("frontend-analysis", test_frontend_analysis),
     ("closed-loop-plan", test_closed_loop_plan),
+    ("phase-continuity-workstream", test_phase_continuity_workstream),
     ("preserve-unmanaged-docs", test_preserve_unmanaged_docs),
 ]
 

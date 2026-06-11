@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 MANAGED_MARKER = "<!-- harness-repo-bootstrap:managed -->"
+DEFAULT_KNOWLEDGE_PLACEHOLDER = "- [ ] Add durable facts here as they emerge -> <destination-doc>"
 PLAN_TEMPLATE = """# Execution Plan: {title}
 
 ## Goal
@@ -52,6 +53,17 @@ Last scored: pending
 
 - Pending quality score.
 
+## Phase Continuity
+
+Mode: single-phase
+Workstream: none
+Current phase: none
+Next phase: none
+Continuation: none
+Next action: none
+Closure reason: This plan is not part of a longer workstream.
+Resume notes: none
+
 ## Durable Knowledge To Capture
 
 {knowledge_section}
@@ -71,6 +83,7 @@ Read this file first, then follow the linked docs.
 
 - Read `ARCHITECTURE.md` before changing boundaries, data flow, or integrations.
 - Read `docs/PLANS.md` before starting multi-step execution work.
+- Read `docs/exec-plans/workstreams.md` before resuming interrupted feature, refactor, reliability, or cleanup work.
 - Read `docs/exec-plans/active/` before resuming in-flight work, and create a plan there for new multi-step work.
 - Read `docs/QUALITY_SCORE.md` before evaluating tradeoffs or readiness.
 - Read `docs/RELIABILITY.md` for runtime validation and failure handling.
@@ -89,6 +102,7 @@ Read this file first, then follow the linked docs.
 
 - Keep durable decisions in repo docs, not only in chat.
 - Keep active plans in `docs/exec-plans/active/`.
+- Keep resumable feature, refactor, reliability, and cleanup work in `docs/exec-plans/workstreams.md`.
 - Move completed plans to `docs/exec-plans/completed/`.
 - Update plans during the work, not only at the end.
 - Score completed work with `quality-score` before closing an execution plan.
@@ -167,6 +181,7 @@ DOC_FILES = {
 
 - Put active execution plans in `docs/exec-plans/active/`.
 - Move completed plans to `docs/exec-plans/completed/`.
+- Track resumable multi-plan workstreams in `docs/exec-plans/workstreams.md`.
 - Record cross-cutting follow-up work in `docs/exec-plans/tech-debt-tracker.md`.
 
 ## Authoring Rules
@@ -175,6 +190,7 @@ DOC_FILES = {
 - Update plans during the work, not after the fact.
 - Link to specs, decisions, and validation artifacts when they exist.
 - Include a section for durable knowledge that must be written back into permanent docs.
+- Include phase continuity when a plan is part of a multi-phase feature, refactor, reliability, or cleanup effort.
 - Do not treat plans as the final home for product, architecture, or policy knowledge.
 """,
     "docs/PRODUCT_SENSE.md": """{marker}
@@ -258,6 +274,24 @@ DOC_FILES = {
 
 Record follow-up work that should survive beyond a single execution plan.
 """,
+    "docs/exec-plans/workstreams.md": """{marker}
+# Workstreams
+
+Use this ledger to recover interrupted feature, refactor, reliability, security, frontend, and cleanup work.
+
+## Index
+
+| ID | Status | Current Plan | Last Completed Plan | Next Action | Last Updated |
+| --- | --- | --- | --- | --- | --- |
+
+## Operating Rules
+
+- Add a workstream when work spans multiple execution plans or may be resumed by another agent.
+- Keep `Current Plan` pointed at the active plan when one exists.
+- Keep `Last Completed Plan` pointed at the latest completed plan after `plan-close`.
+- Keep `Next Action` concrete enough that another agent can resume without chat history.
+- If a workstream is paused, record the restart condition in `Next Action`.
+""",
     "docs/exec-plans/active/README.md": """{marker}
 # Active Execution Plans
 
@@ -274,6 +308,8 @@ Minimum contents:
 - constraints
 - steps
 - validation
+- quality gate
+- phase continuity
 - durable knowledge to capture
 """,
     "docs/exec-plans/active/_template.md": """{marker}
@@ -319,6 +355,17 @@ Last scored: pending
 
 - Pending quality score.
 
+## Phase Continuity
+
+Mode: single-phase
+Workstream: none
+Current phase: none
+Next phase: none
+Continuation: none
+Next action: none
+Closure reason: This plan is not part of a longer workstream.
+Resume notes: none
+
 ## Durable Knowledge To Capture
 
 - List facts that must be written back into permanent docs before completion.
@@ -334,8 +381,9 @@ Move finished plans here after:
 
 1. validation is complete
 2. the quality gate has passed
-3. permanent docs have been updated
-4. any remaining follow-ups are recorded in tech debt or new plans
+3. phase continuity has been recorded for multi-phase work
+4. permanent docs have been updated
+5. any remaining follow-ups are recorded in workstreams, tech debt, or new plans
 """,
     "docs/generated/db-schema.md": """{marker}
 # Generated DB Schema
@@ -742,6 +790,184 @@ def quality_gate_for_plan(text):
     }
 
 
+def section_key_values(text, heading):
+    lines = text.splitlines()
+    section_index = find_section(lines, f"## {heading}")
+    if section_index is None:
+        return None
+    values = {}
+    for line in lines[section_index + 1 :]:
+        if line.startswith("## "):
+            break
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        normalized_key = key.strip().lower().replace(" ", "_")
+        values[normalized_key] = value.strip()
+    return values
+
+
+def phase_number_from_text(value):
+    match = re.search(r"\bphase[-_\s]*(?P<number>\d+)\b", value, flags=re.IGNORECASE)
+    if not match:
+        return None
+    return match.group("number")
+
+
+def plan_title(text):
+    for line in text.splitlines():
+        if line.startswith("# Execution Plan:"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
+
+def default_workstream_id_from_plan(plan_path, text):
+    source = plan_path.stem
+    source = re.sub(r"^\d{4}-\d{2}-\d{2}-", "", source)
+    source = re.sub(r"phase[-_\s]*\d+", "", source, flags=re.IGNORECASE)
+    source = source.strip("-_ ")
+    if not source:
+        source = plan_title(text)
+        source = re.sub(r"phase[-_\s]*\d+", "", source, flags=re.IGNORECASE)
+    return slugify(source or "workstream")
+
+
+def phase_continuity_for_plan(plan_path, text):
+    values = section_key_values(text, "Phase Continuity")
+    detected_phase = phase_number_from_text(plan_path.stem) or phase_number_from_text(plan_title(text))
+    if values is None:
+        return {
+            "status": "missing",
+            "detected_phase": detected_phase,
+            "mode": None,
+            "workstream": None,
+            "current_phase": None,
+            "next_phase": None,
+            "continuation": None,
+            "next_action": None,
+            "closure_reason": None,
+            "resume_notes": None,
+        }
+    mode = values.get("mode", "").lower()
+    workstream = values.get("workstream")
+    current_phase = values.get("current_phase")
+    next_phase = values.get("next_phase")
+    continuation = values.get("continuation")
+    next_action = values.get("next_action")
+    closure_reason = values.get("closure_reason")
+    resume_notes = values.get("resume_notes")
+    return {
+        "status": "present",
+        "detected_phase": detected_phase,
+        "mode": mode,
+        "workstream": workstream,
+        "current_phase": current_phase,
+        "next_phase": next_phase,
+        "continuation": continuation,
+        "next_action": next_action,
+        "closure_reason": closure_reason,
+        "resume_notes": resume_notes,
+    }
+
+
+def is_empty_continuity_value(value):
+    if value is None:
+        return True
+    return value.strip().lower() in {"", "none", "pending", "unknown", "n/a", "-"}
+
+
+def phase_continuity_issues(repo, plan_path, plan_text):
+    continuity = phase_continuity_for_plan(plan_path, plan_text)
+    detected_phase = continuity["detected_phase"]
+    if continuity["status"] == "missing":
+        if detected_phase:
+            return [
+                {
+                    "severity": "error",
+                    "code": "missing-phase-continuity",
+                    "path": str(plan_path.relative_to(repo)),
+                    "message": "Phased plan is missing a Phase Continuity section.",
+                }
+            ]
+        return []
+    mode = continuity["mode"]
+    if mode in {"single-phase", "single", "none"} and not detected_phase:
+        return []
+    issues = []
+    relative_plan = str(plan_path.relative_to(repo))
+    if mode not in {"multi-phase", "phased", "paused", "completed", "stopped"} and detected_phase:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "phase-mode-not-declared",
+                "path": relative_plan,
+                "message": "Plan name indicates a phase, but Phase Continuity does not declare multi-phase, paused, completed, or stopped mode.",
+            }
+        )
+    if is_empty_continuity_value(continuity["workstream"]):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "missing-workstream",
+                "path": relative_plan,
+                "message": "Phased or multi-plan work must name a workstream in Phase Continuity.",
+            }
+        )
+    if is_empty_continuity_value(continuity["current_phase"]):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "missing-current-phase",
+                "path": relative_plan,
+                "message": "Phased or multi-plan work must record the current phase.",
+            }
+        )
+    continuation = continuity["continuation"]
+    closure_reason = continuity["closure_reason"]
+    next_action = continuity["next_action"]
+    if mode in {"completed", "stopped"}:
+        if is_empty_continuity_value(closure_reason):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-phase-closure-reason",
+                    "path": relative_plan,
+                    "message": "Completed or stopped workstreams must explain why no next phase is needed.",
+                }
+            )
+        return issues
+    if is_empty_continuity_value(continuation):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "missing-continuation",
+                "path": relative_plan,
+                "message": "Multi-phase work must point to a next active plan, workstreams ledger, tech debt item, or explicit closure.",
+            }
+        )
+    elif "workstreams.md" in continuation and not is_empty_continuity_value(continuity["workstream"]):
+        ledger = workstreams_path(repo)
+        if not ledger.exists() or continuity["workstream"] not in ledger.read_text():
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-workstream-ledger-entry",
+                    "path": relative_plan,
+                    "message": "Phase Continuity points to workstreams.md, but the named workstream is not recorded there.",
+                }
+            )
+    if is_empty_continuity_value(next_action):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "missing-next-action",
+                "path": relative_plan,
+                "message": "Multi-phase work must record a concrete next action for recovery.",
+            }
+        )
+    return issues
+
+
 def render_quality_gate(scores, notes, minimum):
     average = sum(scores.values()) / len(scores)
     low_dimensions = [
@@ -806,14 +1032,167 @@ def assert_quality_gate_passed(plan_text):
     return gate
 
 
+def render_phase_continuity(mode, workstream, current_phase, next_phase, continuation, next_action, closure_reason, resume_notes):
+    return "\n".join(
+        [
+            f"Mode: {mode}",
+            f"Workstream: {workstream}",
+            f"Current phase: {current_phase}",
+            f"Next phase: {next_phase}",
+            f"Continuation: {continuation}",
+            f"Next action: {next_action}",
+            f"Closure reason: {closure_reason}",
+            f"Resume notes: {resume_notes}",
+        ]
+    )
+
+
+def update_phase_continuity(plan_path, mode, workstream, current_phase, next_phase, continuation, next_action, closure_reason, resume_notes):
+    text = plan_path.read_text()
+    detected_phase = phase_number_from_text(plan_path.stem) or phase_number_from_text(plan_title(text)) or "none"
+    resolved_workstream = workstream or default_workstream_id_from_plan(plan_path, text)
+    resolved_current_phase = current_phase or detected_phase
+    body = render_phase_continuity(
+        mode,
+        resolved_workstream,
+        resolved_current_phase,
+        next_phase,
+        continuation,
+        next_action,
+        closure_reason,
+        resume_notes,
+    )
+    plan_path.write_text(replace_section(text, "Phase Continuity", body))
+    return {
+        "status": "updated",
+        "mode": mode,
+        "workstream": resolved_workstream,
+        "current_phase": resolved_current_phase,
+        "next_phase": next_phase,
+        "continuation": continuation,
+        "next_action": next_action,
+    }
+
+
+def workstreams_path(repo):
+    return repo / "docs" / "exec-plans" / "workstreams.md"
+
+
+def workstream_table_insert_index(lines):
+    index_heading = find_section(lines, "## Index")
+    if index_heading is None:
+        return len(lines)
+    index = index_heading + 1
+    while index < len(lines) and lines[index].strip() == "":
+        index += 1
+    while index < len(lines) and not lines[index].startswith("| ID |"):
+        if lines[index].startswith("## "):
+            return index
+        index += 1
+    if index >= len(lines):
+        return index_heading + 1
+    index += 1
+    if index < len(lines) and lines[index].startswith("| ---"):
+        index += 1
+    while index < len(lines) and lines[index].startswith("|"):
+        index += 1
+    return index
+
+
+def append_workstream_entry(repo, workstream_id, status, current_plan, last_completed_plan, next_action, goal, resume_notes):
+    target = workstreams_path(repo)
+    ensure_parent(target)
+    if not target.exists():
+        target.write_text(DOC_FILES["docs/exec-plans/workstreams.md"].format(marker=MANAGED_MARKER))
+    text = target.read_text()
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    row = (
+        f"| {workstream_id} | {status} | {current_plan or 'none'} | "
+        f"{last_completed_plan or 'none'} | {next_action or 'none'} | {today} |"
+    )
+    lines = text.splitlines()
+    replaced = False
+    updated_lines = []
+    for line in lines:
+        if line.startswith(f"| {workstream_id} |"):
+            updated_lines.append(row)
+            replaced = True
+        else:
+            updated_lines.append(line)
+    if not replaced:
+        insert_index = workstream_table_insert_index(updated_lines)
+        updated_lines.insert(insert_index, row)
+    detail = (
+        f"Status: {status}\n"
+        f"Goal: {goal or 'Record the durable goal for this workstream.'}\n"
+        f"Current plan: {current_plan or 'none'}\n"
+        f"Last completed plan: {last_completed_plan or 'none'}\n"
+        f"Next action: {next_action or 'none'}\n"
+        f"Resume notes: {resume_notes or 'Read the current or last completed plan before continuing.'}\n"
+        f"Last updated: {today}"
+    )
+    updated_text = "\n".join(updated_lines).rstrip() + "\n"
+    updated_text = replace_section(updated_text, workstream_id, detail)
+    target.write_text(updated_text)
+    return target
+
+
+def update_workstreams_after_plan_close(repo, active_relative_plan, completed_relative_plan):
+    target = workstreams_path(repo)
+    if not target.exists():
+        return
+    lines = target.read_text().splitlines()
+    updated = []
+    current_plan_was_closed = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("|") and not stripped.startswith("| ---") and not stripped.startswith("| ID |"):
+            cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+            if len(cells) == 6:
+                if cells[2] == active_relative_plan:
+                    cells[2] = "none"
+                    if cells[3] == "none":
+                        cells[3] = completed_relative_plan
+                if cells[3] == active_relative_plan:
+                    cells[3] = completed_relative_plan
+                updated.append("| " + " | ".join(cells) + " |")
+                continue
+        if line == f"Current plan: {active_relative_plan}":
+            updated.append("Current plan: none")
+            current_plan_was_closed = True
+            continue
+        if line == f"Last completed plan: {active_relative_plan}":
+            updated.append(f"Last completed plan: {completed_relative_plan}")
+            current_plan_was_closed = False
+            continue
+        if current_plan_was_closed and line == "Last completed plan: none":
+            updated.append(f"Last completed plan: {completed_relative_plan}")
+            current_plan_was_closed = False
+            continue
+        updated.append(line)
+        if line.startswith("## "):
+            current_plan_was_closed = False
+    target.write_text("\n".join(updated).rstrip() + "\n")
+
+
+def assert_phase_continuity_closed(repo, plan_path, plan_text):
+    issues = phase_continuity_issues(repo, plan_path, plan_text)
+    if issues:
+        messages = "\n".join(f"- {issue['code']}: {issue['message']}" for issue in issues)
+        raise RuntimeError(
+            "Cannot close plan until phase continuity is recorded:\n"
+            + messages
+            + "\nRun `phase-set` and update `workstreams.md` or `tech-debt-tracker.md` before closing."
+        )
+
+
 def append_knowledge_item(plan_path, fact, destination):
     text = plan_path.read_text()
     lines = text.splitlines()
     section_index = find_section(lines, "## Durable Knowledge To Capture")
     if section_index is None:
         raise ValueError("Plan is missing '## Durable Knowledge To Capture'")
-    placeholder = "- [ ] Add durable facts here as they emerge -> <destination-doc>"
-    filtered_lines = [line for line in lines if line.strip() != placeholder]
+    filtered_lines = [line for line in lines if line.strip() != DEFAULT_KNOWLEDGE_PLACEHOLDER]
     insert_index = section_index + 1
     while insert_index < len(filtered_lines) and not filtered_lines[insert_index].startswith("## "):
         insert_index += 1
@@ -984,7 +1363,12 @@ def close_plan(repo, plan_relative_path, summary, force):
     text = plan_path.read_text()
     if not force:
         assert_quality_gate_passed(text)
-    open_items = [item for item in extract_knowledge_items(text) if item.startswith("- [ ]")]
+        assert_phase_continuity_closed(repo, plan_path, text)
+    open_items = [
+        item
+        for item in extract_knowledge_items(text)
+        if item.startswith("- [ ]") and item != DEFAULT_KNOWLEDGE_PLACEHOLDER
+    ]
     if open_items and not force:
         raise RuntimeError(
             "Cannot close plan with unresolved durable knowledge items:\n" + "\n".join(open_items)
@@ -995,6 +1379,8 @@ def close_plan(repo, plan_relative_path, summary, force):
     destination = completed_dir / plan_path.name
     destination.write_text(updated_text)
     plan_path.unlink()
+    completed_relative_path = str(destination.relative_to(repo))
+    update_workstreams_after_plan_close(repo, plan_relative_path, completed_relative_path)
     return destination, open_items
 
 
@@ -1006,6 +1392,7 @@ def check_harness(repo):
         "docs/QUALITY_SCORE.md",
         "docs/RELIABILITY.md",
         "docs/SECURITY.md",
+        "docs/exec-plans/workstreams.md",
         "docs/exec-plans/active/README.md",
         "docs/exec-plans/active/_template.md",
         "docs/exec-plans/completed/README.md",
@@ -1048,7 +1435,10 @@ def check_harness(repo):
                         "message": "Active plan quality gate has not passed; score the work and finish rework before handoff.",
                     }
                 )
+            issues.extend(phase_continuity_issues(repo, plan_path, plan_path.read_text()))
             for item in extract_knowledge_items(plan_path.read_text()):
+                if item == DEFAULT_KNOWLEDGE_PLACEHOLDER:
+                    continue
                 parsed = parse_knowledge_item(item)
                 if not parsed:
                     issues.append(
@@ -1081,6 +1471,34 @@ def check_harness(repo):
                             "path": relative_plan,
                             "destination": parsed["destination"],
                             "message": f"Marked knowledge evidence is missing from destination: {verification_text}",
+                        }
+                    )
+
+    ledger = workstreams_path(repo)
+    if ledger.exists():
+        for index, line in enumerate(ledger.read_text().splitlines(), start=1):
+            stripped = line.strip()
+            if not stripped.startswith("|") or stripped.startswith("| ---") or stripped.startswith("| ID |"):
+                continue
+            cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+            if len(cells) != 6:
+                continue
+            workstream_id, _, current_plan, last_completed_plan, _, _ = cells
+            for label, plan_value in [
+                ("current plan", current_plan),
+                ("last completed plan", last_completed_plan),
+            ]:
+                if plan_value in {"", "none", "n/a", "-"}:
+                    continue
+                if not (repo / plan_value).exists():
+                    issues.append(
+                        {
+                            "severity": "error",
+                            "code": "missing-workstream-plan-reference",
+                            "path": str(ledger.relative_to(repo)),
+                            "line": index,
+                            "workstream": workstream_id,
+                            "message": f"Workstream {workstream_id} references missing {label}: {plan_value}",
                         }
                     )
 
@@ -1183,9 +1601,19 @@ def load_json(path):
 def write_json(path, payload):
     output = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
     if path:
-        Path(path).write_text(output)
+        target = Path(path)
+        ensure_parent(target)
+        target.write_text(output)
     else:
         print(output, end="")
+
+
+def read_text_arg(value=None, file_path=None, label="value"):
+    if value and file_path:
+        raise ValueError(f"Use either --{label} or --{label}-file, not both")
+    if file_path:
+        return Path(file_path).read_text().strip()
+    return value
 
 
 def command_analyze(args):
@@ -1226,7 +1654,10 @@ def command_knowledge_log(args):
     plan_path = repo / args.plan
     if not plan_path.exists():
         raise FileNotFoundError(f"Plan not found: {plan_path}")
-    item, item_id = append_knowledge_item(plan_path, args.fact, args.destination)
+    fact = read_text_arg(args.fact, args.fact_file, "fact")
+    if not fact:
+        raise ValueError("Provide --fact or --fact-file")
+    item, item_id = append_knowledge_item(plan_path, fact, args.destination)
     result = {"repo": str(repo), "plan": str(plan_path), "id": item_id, "logged": item}
     write_json(args.output, result)
 
@@ -1276,26 +1707,64 @@ def command_quality_score(args):
         raise SystemExit(1)
 
 
+def command_phase_set(args):
+    repo = Path(args.repo).resolve()
+    plan_path = repo / args.plan
+    if not plan_path.exists():
+        raise FileNotFoundError(f"Plan not found: {plan_path}")
+    result = update_phase_continuity(
+        plan_path,
+        args.mode,
+        args.workstream,
+        args.current_phase,
+        args.next_phase,
+        args.continuation,
+        args.next_action,
+        args.closure_reason,
+        args.resume_notes,
+    )
+    result.update({"repo": str(repo), "plan": str(plan_path)})
+    write_json(args.output, result)
+
+
+def command_workstream_upsert(args):
+    repo = Path(args.repo).resolve()
+    target = append_workstream_entry(
+        repo,
+        args.id,
+        args.status,
+        args.current_plan,
+        args.last_completed_plan,
+        args.next_action,
+        args.goal,
+        args.resume_notes,
+    )
+    result = {"repo": str(repo), "workstreams": str(target), "id": args.id, "status": "updated"}
+    write_json(args.output, result)
+
+
 def command_knowledge_mark_written(args):
     repo = Path(args.repo).resolve()
     plan_path = repo / args.plan
     if not plan_path.exists():
         raise FileNotFoundError(f"Plan not found: {plan_path}")
+    fact = read_text_arg(args.fact, args.fact_file, "fact")
+    evidence = read_text_arg(args.evidence, args.evidence_file, "evidence")
     mark_single_knowledge_item_written(
         repo,
         plan_path,
-        args.fact,
+        fact,
         args.destination,
         append=args.append,
         knowledge_id=args.id,
-        evidence=args.evidence,
+        evidence=evidence,
     )
     result = {
         "repo": str(repo),
         "plan": str(plan_path),
-        "marked_written": args.id or args.fact,
+        "marked_written": args.id or fact,
         "destination": args.destination,
-        "evidence": args.evidence,
+        "evidence": evidence,
     }
     write_json(args.output, result)
 
@@ -1351,7 +1820,8 @@ def build_parser():
     knowledge_log = subparsers.add_parser("knowledge-log")
     knowledge_log.add_argument("--repo", required=True)
     knowledge_log.add_argument("--plan", required=True)
-    knowledge_log.add_argument("--fact", required=True)
+    knowledge_log.add_argument("--fact")
+    knowledge_log.add_argument("--fact-file")
     knowledge_log.add_argument("--destination", required=True)
     knowledge_log.add_argument("--output")
     knowledge_log.set_defaults(func=command_knowledge_log)
@@ -1361,8 +1831,10 @@ def build_parser():
     knowledge_mark_written.add_argument("--plan", required=True)
     knowledge_mark_written.add_argument("--id")
     knowledge_mark_written.add_argument("--fact")
+    knowledge_mark_written.add_argument("--fact-file")
     knowledge_mark_written.add_argument("--destination")
     knowledge_mark_written.add_argument("--evidence")
+    knowledge_mark_written.add_argument("--evidence-file")
     knowledge_mark_written.add_argument("--append", action="store_true")
     knowledge_mark_written.add_argument("--output")
     knowledge_mark_written.set_defaults(func=command_knowledge_mark_written)
@@ -1391,6 +1863,40 @@ def build_parser():
     quality_score.add_argument("--security-note", default="")
     quality_score.add_argument("--output")
     quality_score.set_defaults(func=command_quality_score)
+
+    phase_set = subparsers.add_parser("phase-set")
+    phase_set.add_argument("--repo", required=True)
+    phase_set.add_argument("--plan", required=True)
+    phase_set.add_argument(
+        "--mode",
+        choices=["single-phase", "multi-phase", "paused", "completed", "stopped"],
+        required=True,
+    )
+    phase_set.add_argument("--workstream")
+    phase_set.add_argument("--current-phase")
+    phase_set.add_argument("--next-phase", default="none")
+    phase_set.add_argument("--continuation", default="none")
+    phase_set.add_argument("--next-action", default="none")
+    phase_set.add_argument("--closure-reason", default="none")
+    phase_set.add_argument("--resume-notes", default="none")
+    phase_set.add_argument("--output")
+    phase_set.set_defaults(func=command_phase_set)
+
+    workstream_upsert = subparsers.add_parser("workstream-upsert")
+    workstream_upsert.add_argument("--repo", required=True)
+    workstream_upsert.add_argument("--id", required=True)
+    workstream_upsert.add_argument(
+        "--status",
+        choices=["active", "paused", "completed", "stopped"],
+        required=True,
+    )
+    workstream_upsert.add_argument("--current-plan", default="none")
+    workstream_upsert.add_argument("--last-completed-plan", default="none")
+    workstream_upsert.add_argument("--next-action", required=True)
+    workstream_upsert.add_argument("--goal", default="")
+    workstream_upsert.add_argument("--resume-notes", default="")
+    workstream_upsert.add_argument("--output")
+    workstream_upsert.set_defaults(func=command_workstream_upsert)
 
     check = subparsers.add_parser("check")
     check.add_argument("--repo", required=True)
