@@ -9,6 +9,9 @@
   "bin": {
     "harness-engine": "bin/install.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "python3 skills/harness-repo-bootstrap/evals/run_evals.py",
     "smoke:install": "node scripts/smoke_install.js",
