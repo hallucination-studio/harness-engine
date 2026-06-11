@@ -10,6 +10,7 @@ from pathlib import Path
 
 MANAGED_MARKER = "<!-- harness-repo-bootstrap:managed -->"
 DEFAULT_KNOWLEDGE_PLACEHOLDER = "- [ ] Add durable facts here as they emerge -> <destination-doc>"
+DEFAULT_DEFECT_PLACEHOLDER = "None."
 PLAN_TEMPLATE = """# Execution Plan: {title}
 
 ## Goal
@@ -48,6 +49,10 @@ Last scored: pending
 | Architecture and maintainability | pending | Confirm the implementation is clean and easy to change. |
 | Reliability and observability | pending | Confirm the validation loop and failure handling are sufficient. |
 | Security and data handling | pending | Confirm secrets and sensitive data are handled safely. |
+
+## Defects To Resolve
+
+{defect_section}
 
 ## Rework Required
 
@@ -694,9 +699,29 @@ def extract_knowledge_items(text):
     return items
 
 
+def extract_defect_items(text):
+    lines = text.splitlines()
+    section_index = find_section(lines, "## Defects To Resolve")
+    if section_index is None:
+        return []
+    items = []
+    for line in lines[section_index + 1 :]:
+        if line.startswith("## "):
+            break
+        stripped = line.strip()
+        if stripped.startswith("- ["):
+            items.append(stripped)
+    return items
+
+
 def knowledge_id_for(fact, destination):
     digest = hashlib.sha1(f"{clean_destination_text(destination)}\0{clean_fact_text(fact)}".encode()).hexdigest()
     return f"hk-{digest[:10]}"
+
+
+def defect_id_for(summary):
+    digest = hashlib.sha1(clean_fact_text(summary).encode()).hexdigest()
+    return f"bug-{digest[:10]}"
 
 
 def parse_knowledge_item(item):
@@ -716,6 +741,29 @@ def parse_knowledge_item(item):
         "fact": clean_fact_text(match.group("fact")),
         "destination": clean_destination_text(match.group("destination")),
         "evidence": clean_fact_text(match.group("evidence")) if match.group("evidence") else None,
+        "raw": item,
+    }
+
+
+def parse_defect_item(item):
+    match = re.match(
+        r"- \[(?P<status>[ xX])\]\s+"
+        r"(?:\[(?:id|bug):(?P<id>[A-Za-z0-9_.:-]+)\]\s+)?"
+        r"\[(?P<severity>P[0-3])\]\s+"
+        r"(?P<summary>.*?)"
+        r"(?:\s+\|\s+evidence:\s+(?P<evidence>.*?))?"
+        r"(?:\s+\|\s+fix:\s+(?P<fix>.+))?$",
+        item.strip(),
+    )
+    if not match:
+        return None
+    return {
+        "status": "closed" if match.group("status").lower() == "x" else "open",
+        "id": match.group("id"),
+        "severity": match.group("severity"),
+        "summary": clean_fact_text(match.group("summary")),
+        "evidence": clean_fact_text(match.group("evidence")) if match.group("evidence") else None,
+        "fix": clean_fact_text(match.group("fix")) if match.group("fix") else None,
         "raw": item,
     }
 
@@ -968,12 +1016,22 @@ def phase_continuity_issues(repo, plan_path, plan_text):
     return issues
 
 
-def render_quality_gate(scores, notes, minimum):
+def open_defects_for_plan(text):
+    open_items = []
+    for item in extract_defect_items(text):
+        parsed = parse_defect_item(item)
+        if parsed and parsed["status"] == "open":
+            open_items.append(parsed)
+    return open_items
+
+
+def render_quality_gate(scores, notes, minimum, open_defects=None):
+    open_defects = open_defects or []
     average = sum(scores.values()) / len(scores)
     low_dimensions = [
         label for key, label in QUALITY_DIMENSIONS if scores[key] < minimum
     ]
-    passed = average >= minimum and not low_dimensions
+    passed = average >= minimum and not low_dimensions and not open_defects
     status = "pass" if passed else "fail"
     lines = [
         f"Status: {status}",
@@ -991,12 +1049,18 @@ def render_quality_gate(scores, notes, minimum):
     return "\n".join(lines), passed, average, low_dimensions
 
 
-def render_rework_section(passed, average, minimum, low_dimensions, notes):
+def render_rework_section(passed, average, minimum, low_dimensions, notes, open_defects=None):
+    open_defects = open_defects or []
     if passed:
         return "None. Quality gate passed."
     lines = [
         f"- Rework implementation until every quality dimension is at least {minimum:.1f}; current average is {average:.1f}.",
     ]
+    for defect in open_defects:
+        evidence = f" Evidence: {defect['evidence']}." if defect.get("evidence") else ""
+        lines.append(
+            f"- Resolve {defect['id']} ({defect['severity']}): {defect['summary']}.{evidence}"
+        )
     for key, label in QUALITY_DIMENSIONS:
         if label in low_dimensions:
             note = notes.get(key) or "No note provided."
@@ -1006,12 +1070,13 @@ def render_rework_section(passed, average, minimum, low_dimensions, notes):
 
 def update_quality_gate(plan_path, scores, notes, minimum):
     text = plan_path.read_text()
-    gate_text, passed, average, low_dimensions = render_quality_gate(scores, notes, minimum)
+    open_defects = open_defects_for_plan(text)
+    gate_text, passed, average, low_dimensions = render_quality_gate(scores, notes, minimum, open_defects)
     updated = replace_section(text, "Quality Gate", gate_text)
     updated = replace_section(
         updated,
         "Rework Required",
-        render_rework_section(passed, average, minimum, low_dimensions, notes),
+        render_rework_section(passed, average, minimum, low_dimensions, notes, open_defects),
     )
     plan_path.write_text(updated)
     return {
@@ -1019,10 +1084,21 @@ def update_quality_gate(plan_path, scores, notes, minimum):
         "minimum": minimum,
         "average": round(average, 1),
         "low_dimensions": low_dimensions,
+        "open_defects": [defect["id"] for defect in open_defects],
     }
 
 
 def assert_quality_gate_passed(plan_text):
+    open_defects = open_defects_for_plan(plan_text)
+    if open_defects:
+        defects = "\n".join(
+            f"- {defect['id']} ({defect['severity']}): {defect['summary']}" for defect in open_defects
+        )
+        raise RuntimeError(
+            "Cannot close plan with unresolved defects:\n"
+            + defects
+            + "\nRun `defect-resolve`, re-run validation, and score again."
+        )
     gate = quality_gate_for_plan(plan_text)
     if gate["status"] != "pass":
         raise RuntimeError(
@@ -1203,11 +1279,126 @@ def append_knowledge_item(plan_path, fact, destination):
     return item, item_id
 
 
+def render_open_defect_rework(open_defects):
+    lines = ["- Resolve all open defects, then re-run validation and `quality-score`."]
+    for defect in open_defects:
+        evidence = f" Evidence: {defect['evidence']}." if defect.get("evidence") else ""
+        lines.append(f"- Resolve {defect['id']} ({defect['severity']}): {defect['summary']}.{evidence}")
+    return "\n".join(lines)
+
+
+def mark_quality_gate_blocked_by_defects(text):
+    open_defects = open_defects_for_plan(text)
+    if not open_defects:
+        return text
+    lines = text.splitlines()
+    section_index = find_section(lines, "## Quality Gate")
+    if section_index is None:
+        gate_text = "\n".join(
+            [
+                "Status: fail",
+                "Minimum score: 8.0",
+                "Average score: pending",
+                f"Last scored: {datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}",
+                "",
+                "Blocked by unresolved defects. Run `defect-resolve`, re-run validation, then run `quality-score`.",
+            ]
+        )
+        text = replace_section(text, "Quality Gate", gate_text)
+    else:
+        end_index = len(lines)
+        for index in range(section_index + 1, len(lines)):
+            if lines[index].startswith("## "):
+                end_index = index
+                break
+        section_lines = lines[section_index + 1 : end_index]
+        has_status = False
+        updated_section = []
+        for line in section_lines:
+            if line.startswith("Status:"):
+                updated_section.append("Status: fail")
+                has_status = True
+            elif line.startswith("Last scored:"):
+                updated_section.append(f"Last scored: {datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}")
+            else:
+                updated_section.append(line)
+        if not has_status:
+            updated_section.insert(0, "Status: fail")
+        lines = lines[: section_index + 1] + updated_section + lines[end_index:]
+        text = "\n".join(lines).rstrip() + "\n"
+    return replace_section(text, "Rework Required", render_open_defect_rework(open_defects))
+
+
+def append_defect_item(plan_path, severity, summary, evidence=None):
+    text = plan_path.read_text()
+    if find_section(text.splitlines(), "## Defects To Resolve") is None:
+        text = replace_section(text, "Defects To Resolve", DEFAULT_DEFECT_PLACEHOLDER)
+    lines = text.splitlines()
+    section_index = find_section(lines, "## Defects To Resolve")
+    if section_index is None:
+        raise ValueError("Plan is missing '## Defects To Resolve'")
+    filtered_lines = [line for line in lines if line.strip() != DEFAULT_DEFECT_PLACEHOLDER]
+    insert_index = section_index + 1
+    while insert_index < len(filtered_lines) and not filtered_lines[insert_index].startswith("## "):
+        insert_index += 1
+    item_id = defect_id_for(summary)
+    safe_summary = clean_fact_text(summary)
+    safe_evidence = clean_fact_text(evidence) if evidence else None
+    item = f"- [ ] [bug:{item_id}] [{severity}] {safe_summary}"
+    if safe_evidence:
+        item = f"{item} | evidence: {safe_evidence}"
+    updated_lines = filtered_lines[:insert_index] + [item] + filtered_lines[insert_index:]
+    plan_path.write_text(mark_quality_gate_blocked_by_defects("\n".join(updated_lines).rstrip() + "\n"))
+    return item, item_id
+
+
+def close_defect_line(line, fix_evidence):
+    updated = line.replace("- [ ]", "- [x]", 1)
+    if "| fix:" not in updated:
+        updated = f"{updated} | fix: {fix_evidence}"
+    return updated
+
+
+def mark_defect_resolved(plan_path, defect_id, fix_evidence):
+    if not defect_id:
+        raise ValueError("Provide --id to resolve a defect")
+    if not fix_evidence:
+        raise ValueError("Provide --fix-evidence or --fix-evidence-file to resolve a defect")
+    lines = plan_path.read_text().splitlines()
+    safe_fix = clean_fact_text(fix_evidence)
+    replaced = False
+    updated = []
+    for line in lines:
+        stripped = line.strip()
+        parsed = parse_defect_item(stripped)
+        if parsed and parsed["status"] == "open" and parsed["id"] == defect_id and not replaced:
+            updated.append(close_defect_line(line, safe_fix))
+            replaced = True
+        else:
+            updated.append(line)
+    if not replaced:
+        raise ValueError(f"Open defect not found for id: {defect_id}")
+    text = "\n".join(updated).rstrip() + "\n"
+    open_defects = open_defects_for_plan(text)
+    if open_defects:
+        text = replace_section(text, "Rework Required", render_open_defect_rework(open_defects))
+    else:
+        text = replace_section(
+            text,
+            "Rework Required",
+            "Defects resolved. Re-run validation and `quality-score` before closing.",
+        )
+    plan_path.write_text(text)
+
+
 def mark_knowledge_items_closed(text):
     lines = text.splitlines()
     updated = []
+    in_knowledge_section = False
     for line in lines:
-        if line.strip().startswith("- [ ]"):
+        if line.startswith("## "):
+            in_knowledge_section = line.strip().lower() == "## durable knowledge to capture"
+        if in_knowledge_section and line.strip().startswith("- [ ]") and line.strip() != DEFAULT_KNOWLEDGE_PLACEHOLDER:
             updated.append(line.replace("- [ ]", "- [x]", 1))
         else:
             updated.append(line)
@@ -1339,6 +1530,24 @@ def completed_plan_dir(repo):
     return repo / "docs" / "exec-plans" / "completed"
 
 
+def plan_path_from_arg(repo, plan_arg):
+    raw_plan = Path(plan_arg)
+    if raw_plan.is_absolute():
+        plan_path = raw_plan.resolve()
+    else:
+        plan_path = (repo / raw_plan).resolve()
+
+    try:
+        relative_plan = str(plan_path.relative_to(repo.resolve()))
+    except ValueError as error:
+        raise ValueError(f"Plan must be inside repo: {plan_arg}") from error
+
+    if not plan_path.exists():
+        raise FileNotFoundError(f"Plan not found: {plan_path}")
+
+    return plan_path, relative_plan
+
+
 def create_plan(repo, slug, goal):
     plan_dir = active_plan_dir(repo)
     plan_dir.mkdir(parents=True, exist_ok=True)
@@ -1350,6 +1559,7 @@ def create_plan(repo, slug, goal):
     content = PLAN_TEMPLATE.format(
         title=title.title(),
         goal=goal,
+        defect_section=DEFAULT_DEFECT_PLACEHOLDER,
         knowledge_section="- [ ] Add durable facts here as they emerge -> <destination-doc>",
     )
     plan_path.write_text(content)
@@ -1357,9 +1567,7 @@ def create_plan(repo, slug, goal):
 
 
 def close_plan(repo, plan_relative_path, summary, force):
-    plan_path = repo / plan_relative_path
-    if not plan_path.exists():
-        raise FileNotFoundError(f"Plan not found: {plan_path}")
+    plan_path, active_relative_path = plan_path_from_arg(repo, plan_relative_path)
     text = plan_path.read_text()
     if not force:
         assert_quality_gate_passed(text)
@@ -1380,7 +1588,7 @@ def close_plan(repo, plan_relative_path, summary, force):
     destination.write_text(updated_text)
     plan_path.unlink()
     completed_relative_path = str(destination.relative_to(repo))
-    update_workstreams_after_plan_close(repo, plan_relative_path, completed_relative_path)
+    update_workstreams_after_plan_close(repo, active_relative_path, completed_relative_path)
     return destination, open_items
 
 
@@ -1433,6 +1641,17 @@ def check_harness(repo):
                         "code": "quality-gate-not-passing",
                         "path": relative_plan,
                         "message": "Active plan quality gate has not passed; score the work and finish rework before handoff.",
+                    }
+                )
+            for defect in open_defects_for_plan(plan_path.read_text()):
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "open-defect",
+                        "path": relative_plan,
+                        "id": defect["id"],
+                        "defect_severity": defect["severity"],
+                        "message": f"Active plan has an unresolved defect: {defect['summary']}",
                     }
                 )
             issues.extend(phase_continuity_issues(repo, plan_path, plan_path.read_text()))
@@ -1651,14 +1870,40 @@ def command_plan_start(args):
 
 def command_knowledge_log(args):
     repo = Path(args.repo).resolve()
-    plan_path = repo / args.plan
-    if not plan_path.exists():
-        raise FileNotFoundError(f"Plan not found: {plan_path}")
+    plan_path, _ = plan_path_from_arg(repo, args.plan)
     fact = read_text_arg(args.fact, args.fact_file, "fact")
     if not fact:
         raise ValueError("Provide --fact or --fact-file")
     item, item_id = append_knowledge_item(plan_path, fact, args.destination)
     result = {"repo": str(repo), "plan": str(plan_path), "id": item_id, "logged": item}
+    write_json(args.output, result)
+
+
+def command_defect_log(args):
+    repo = Path(args.repo).resolve()
+    plan_path, _ = plan_path_from_arg(repo, args.plan)
+    summary = read_text_arg(args.summary, args.summary_file, "summary")
+    evidence = read_text_arg(args.evidence, args.evidence_file, "evidence")
+    if not summary:
+        raise ValueError("Provide --summary or --summary-file")
+    item, item_id = append_defect_item(plan_path, args.severity, summary, evidence=evidence)
+    result = {"repo": str(repo), "plan": str(plan_path), "id": item_id, "logged": item, "status": "fail"}
+    write_json(args.output, result)
+    raise SystemExit(1)
+
+
+def command_defect_resolve(args):
+    repo = Path(args.repo).resolve()
+    plan_path, _ = plan_path_from_arg(repo, args.plan)
+    fix_evidence = read_text_arg(args.fix_evidence, args.fix_evidence_file, "fix-evidence")
+    mark_defect_resolved(plan_path, args.id, fix_evidence)
+    result = {
+        "repo": str(repo),
+        "plan": str(plan_path),
+        "id": args.id,
+        "status": "resolved",
+        "fix_evidence": fix_evidence,
+    }
     write_json(args.output, result)
 
 
@@ -1683,9 +1928,7 @@ def score_arg(args, name):
 
 def command_quality_score(args):
     repo = Path(args.repo).resolve()
-    plan_path = repo / args.plan
-    if not plan_path.exists():
-        raise FileNotFoundError(f"Plan not found: {plan_path}")
+    plan_path, _ = plan_path_from_arg(repo, args.plan)
     scores = {
         "product_correctness": score_arg(args, "product_correctness"),
         "ux_operator_clarity": score_arg(args, "ux_operator_clarity"),
@@ -1709,9 +1952,7 @@ def command_quality_score(args):
 
 def command_phase_set(args):
     repo = Path(args.repo).resolve()
-    plan_path = repo / args.plan
-    if not plan_path.exists():
-        raise FileNotFoundError(f"Plan not found: {plan_path}")
+    plan_path, _ = plan_path_from_arg(repo, args.plan)
     result = update_phase_continuity(
         plan_path,
         args.mode,
@@ -1745,9 +1986,7 @@ def command_workstream_upsert(args):
 
 def command_knowledge_mark_written(args):
     repo = Path(args.repo).resolve()
-    plan_path = repo / args.plan
-    if not plan_path.exists():
-        raise FileNotFoundError(f"Plan not found: {plan_path}")
+    plan_path, _ = plan_path_from_arg(repo, args.plan)
     fact = read_text_arg(args.fact, args.fact_file, "fact")
     evidence = read_text_arg(args.evidence, args.evidence_file, "evidence")
     mark_single_knowledge_item_written(
@@ -1825,6 +2064,26 @@ def build_parser():
     knowledge_log.add_argument("--destination", required=True)
     knowledge_log.add_argument("--output")
     knowledge_log.set_defaults(func=command_knowledge_log)
+
+    defect_log = subparsers.add_parser("defect-log")
+    defect_log.add_argument("--repo", required=True)
+    defect_log.add_argument("--plan", required=True)
+    defect_log.add_argument("--severity", choices=["P0", "P1", "P2", "P3"], required=True)
+    defect_log.add_argument("--summary")
+    defect_log.add_argument("--summary-file")
+    defect_log.add_argument("--evidence")
+    defect_log.add_argument("--evidence-file")
+    defect_log.add_argument("--output")
+    defect_log.set_defaults(func=command_defect_log)
+
+    defect_resolve = subparsers.add_parser("defect-resolve")
+    defect_resolve.add_argument("--repo", required=True)
+    defect_resolve.add_argument("--plan", required=True)
+    defect_resolve.add_argument("--id", required=True)
+    defect_resolve.add_argument("--fix-evidence")
+    defect_resolve.add_argument("--fix-evidence-file")
+    defect_resolve.add_argument("--output")
+    defect_resolve.set_defaults(func=command_defect_resolve)
 
     knowledge_mark_written = subparsers.add_parser("knowledge-mark-written")
     knowledge_mark_written.add_argument("--repo", required=True)

@@ -21,12 +21,14 @@ Run the packaged script to inspect the target repository before editing files. U
 8. If you learn durable facts during the work, run `python3 scripts/manage_harness.py knowledge-log --repo <target-repo> --plan <plan-file> --fact "<fact>" --destination <durable-doc>` and keep the returned `id`. Use `--fact-file <file>` when the fact contains shell-sensitive characters.
 9. Before closing the task, write those facts into their durable docs.
 10. Run `python3 scripts/manage_harness.py knowledge-mark-written --repo <target-repo> --plan <plan-file> --id <knowledge-id> --evidence "<text already in durable doc>"`; prefer `--evidence-file <file>` when evidence contains backticks, globs, quotes, pipes, or other shell-sensitive characters. Use `--append` only when the exact fact should be appended mechanically.
-11. Score the finished work with `python3 scripts/manage_harness.py quality-score --repo <target-repo> --plan <plan-file> --product-correctness <0-10> --ux-operator-clarity <0-10> --architecture-maintainability <0-10> --reliability-observability <0-10> --security-data-handling <0-10>`.
-12. If `quality-score` fails, treat `## Rework Required` in the plan as the next implementation input, fix the work, then run `quality-score` again.
-13. For phased or resumable work, run `python3 scripts/manage_harness.py phase-set --repo <target-repo> --plan <plan-file> --mode <multi-phase|paused|completed|stopped> --workstream <id> --current-phase <n> --continuation <target> --next-action "<next action>"`, then update `workstreams.md` with `workstream-upsert`.
-14. Close the plan with `python3 scripts/manage_harness.py plan-close --repo <target-repo> --plan <plan-file> --summary "<summary>"`.
-15. Before handoff, run `python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo <target-repo>` from an installed target repository.
-16. After changing this skill, run `python3 evals/run_evals.py` and iterate until it passes.
+11. If validation, evals, browser checks, or code review reveal a bug, immediately run `python3 scripts/manage_harness.py defect-log --repo <target-repo> --plan <plan-file> --severity <P0|P1|P2|P3> --summary "<bug>" --evidence "<failing check>"`. This forces the quality gate to fail.
+12. Fix logged defects, then run `python3 scripts/manage_harness.py defect-resolve --repo <target-repo> --plan <plan-file> --id <bug-id> --fix-evidence "<passing check or code evidence>"`.
+13. Score the finished work with `python3 scripts/manage_harness.py quality-score --repo <target-repo> --plan <plan-file> --product-correctness <0-10> --ux-operator-clarity <0-10> --architecture-maintainability <0-10> --reliability-observability <0-10> --security-data-handling <0-10>`.
+14. If `quality-score` fails, treat `## Rework Required` in the plan as the next implementation input, fix the work, then run `quality-score` again.
+15. For phased or resumable work, run `python3 scripts/manage_harness.py phase-set --repo <target-repo> --plan <plan-file> --mode <multi-phase|paused|completed|stopped> --workstream <id> --current-phase <n> --continuation <target> --next-action "<next action>"`, then update `workstreams.md` with `workstream-upsert`.
+16. Close the plan with `python3 scripts/manage_harness.py plan-close --repo <target-repo> --plan <plan-file> --summary "<summary>"`.
+17. Before handoff, run `python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo <target-repo>` from an installed target repository.
+18. After changing this skill, run `python3 evals/run_evals.py` and iterate until it passes.
 
 ## Reading Order
 
@@ -52,6 +54,8 @@ Run the packaged script to inspect the target repository before editing files. U
 - Treat `docs/sops/` as mechanical operating procedures, not background reading.
 - When you answer a question using facts that are not yet in the repo but should be reusable, write them into a durable doc before finishing.
 - Prefer `knowledge-mark-written --id ... --evidence-file ...` so durable docs can use natural wording without shell quoting failures or duplicated exact fact strings.
+- Use `defect-log` for every bug found by tests, evals, browser validation, or code review; unresolved defects must block handoff.
+- Use `defect-resolve` only after the implementation is fixed and you can cite passing validation or code evidence.
 - Use `quality-score` before `plan-close`; failed scores must drive rework, not handoff.
 - Use `phase-set` and `workstream-upsert` before `plan-close` for Phase 1/2/3 or any other resumable multi-plan work.
 - Use `plan-close` as the final guardrail so plan state, quality score, and durable docs stay synchronized.

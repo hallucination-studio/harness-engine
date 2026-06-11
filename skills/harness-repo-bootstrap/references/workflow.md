@@ -43,6 +43,8 @@ After the scaffold exists:
 - follow the matching SOP for architecture, UI, observability, or knowledge capture work
 - encode durable knowledge back into the repository before closing the task
 - mark logged knowledge items as written after updating the permanent docs
+- log every defect found by tests, evals, browser validation, or code review with `defect-log`
+- resolve logged defects only after fixing the implementation and citing passing validation with `defect-resolve`
 - run `quality-score` after implementation and validation
 - if `quality-score` fails, implement the `## Rework Required` items and score again
 - use `phase-set` and `workstream-upsert` when a plan belongs to phased or resumable work
