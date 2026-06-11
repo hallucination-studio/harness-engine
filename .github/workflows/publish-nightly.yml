@@ -1,0 +1,40 @@
+name: Publish Nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  publish-nightly:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Compute nightly version
+        run: |
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          DATE_STAMP=$(date -u +%Y%m%d)
+          NIGHTLY_VERSION="${BASE_VERSION}-nightly.${DATE_STAMP}.${GITHUB_RUN_NUMBER}"
+          node -e "const fs=require('fs'); const pkg=require('./package.json'); pkg.version='${NIGHTLY_VERSION}'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
+          echo "NIGHTLY_VERSION=${NIGHTLY_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Show nightly version
+        run: echo "Publishing ${NIGHTLY_VERSION}"
+
+      - name: Pack package
+        run: npm pack
+
+      - name: Publish nightly to npm
+        run: npm publish --tag nightly --access public --provenance
