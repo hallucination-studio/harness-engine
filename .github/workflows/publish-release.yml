@@ -5,6 +5,21 @@ on:
     types:
       - published
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish for a manual test run. Defaults to <package-version>-test.<run-number>."
+        required: false
+        type: string
+      dist_tag:
+        description: "npm dist-tag for manual publishes."
+        required: false
+        default: next
+        type: string
+      dry_run:
+        description: "Run npm publish --dry-run instead of publishing."
+        required: true
+        default: true
+        type: boolean
 
 jobs:
   publish:
@@ -35,6 +50,18 @@ jobs:
           RELEASE_TAG="${GITHUB_REF_NAME#v}"
           npm version "$RELEASE_TAG" --no-git-tag-version --allow-same-version
 
+      - name: Set package version for manual test
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            TEST_VERSION="${{ inputs.version }}"
+          else
+            BASE_VERSION=$(node -p "require('./package.json').version")
+            TEST_VERSION="${BASE_VERSION}-test.${GITHUB_RUN_NUMBER}"
+          fi
+          npm version "$TEST_VERSION" --no-git-tag-version --allow-same-version
+          echo "MANUAL_VERSION=${TEST_VERSION}" >> "$GITHUB_ENV"
+
       - name: Show package version
         run: node -p "'Publishing harness-engine@' + require('./package.json').version"
 
@@ -42,6 +69,17 @@ jobs:
         run: npm pack
 
       - name: Publish latest to npm
+        if: ${{ github.event_name == 'release' }}
         run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Dry-run manual publish
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: npm publish --access public --tag "${{ inputs.dist_tag }}" --dry-run
+
+      - name: Publish manual test package
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.dry_run }}
+        run: npm publish --access public --provenance --tag "${{ inputs.dist_tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
