@@ -69,6 +69,24 @@ If the browser tool is unavailable, record the limitation as validation evidence
 with the strongest available fallback: static DOM checks, component tests, image snapshots, or
 API smoke checks. Do not mark UX as fully validated without saying what was missing.
 
+## Frontend Issue Reports
+
+Frontend feedback is an eval trigger even when the harness skill was not explicitly invoked.
+Handle any UI, layout, interaction, responsive behavior, visual state, canvas, or design fidelity
+question through the repository's frontend workflow.
+
+The correct response is:
+
+- read `docs/FRONTEND.md`, `docs/DESIGN.md`, and the relevant SOP
+- inspect the affected route, component, viewport, and user workflow
+- reproduce the behavior with browser or local-runtime evidence when possible
+- turn the finding into product/UX assertions or a regression case
+- log confirmed defects or missing evidence in the active plan
+- fix and validate against the same workflow before claiming the UI is acceptable
+
+Do not answer from memory or aesthetic judgment alone when the question is about a concrete
+frontend behavior.
+
 ## Bug Discovery Evals
 
 Add regression cases for failures that were previously missed.

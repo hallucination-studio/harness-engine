@@ -98,10 +98,17 @@ def test_empty_repo_init(tmp_root):
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/workstreams.md")
     assert_contains(repo, "AGENTS.md", "docs/sops/")
     assert_contains(repo, "AGENTS.md", ".codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check")
+    assert_contains(repo, "AGENTS.md", "## Frontend Issue Workflow")
+    assert_contains(repo, "AGENTS.md", "Read `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/sops/evidence-first-eval-loop.md`")
+    assert_contains(repo, "AGENTS.md", "Convert the issue into product/UX assertions or a regression case")
+    assert_contains(repo, "AGENTS.md", "Log confirmed defects or missing evidence with `defect-log`")
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Evidence Requirements")
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Treat LLM or human judgment as a summary over evidence")
     assert_contains(repo, "docs/FRONTEND.md", "Evidence For Meaningful UI Work")
+    assert_contains(repo, "docs/FRONTEND.md", "Define and verify layout invariants")
+    assert_contains(repo, "docs/FRONTEND.md", "preserve the primary task area")
     assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Report per-case results")
+    assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "For frontend issue reports")
 
 
 def test_frontend_analysis(tmp_root):

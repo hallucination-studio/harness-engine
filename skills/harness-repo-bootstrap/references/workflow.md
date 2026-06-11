@@ -41,6 +41,7 @@ After the scaffold exists:
 - use `plan-start` instead of creating plan files manually when possible
 - log durable facts during execution instead of waiting until the end
 - follow the matching SOP for architecture, UI, observability, or knowledge capture work
+- route frontend, UI, layout, interaction, responsive, and visual-state questions through the frontend issue workflow, even when the user did not invoke the harness skill by name
 - encode durable knowledge back into the repository before closing the task
 - mark logged knowledge items as written after updating the permanent docs
 - log every defect found by tests, evals, browser validation, or code review with `defect-log`

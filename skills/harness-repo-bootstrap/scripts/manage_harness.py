@@ -96,6 +96,19 @@ Read this file first, then follow the linked docs.
 - Read `docs/FRONTEND.md` for UI or terminal interface changes.
 - Read the matching file in `docs/sops/` before architecture changes, UI validation, observability work, evidence-first evals, or knowledge capture.
 
+## Frontend Issue Workflow
+
+For any frontend, UI, layout, interaction, responsive, canvas, visual state, or design fidelity
+question, do not answer from visual intuition alone. Use this workflow before judging or fixing:
+
+- Read `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/sops/evidence-first-eval-loop.md`.
+- Inspect the relevant route, component, viewport, and user workflow.
+- Reproduce the issue with browser or local-runtime evidence when available; cover mobile and desktop when responsive behavior is involved.
+- If a code change is needed and no active plan exists, create one with `plan-start`.
+- Convert the issue into product/UX assertions or a regression case before changing code.
+- Log confirmed defects or missing evidence with `defect-log`; unresolved defects must block `quality-score`, `plan-close`, and handoff.
+- Verify the fix against the same workflow and viewport evidence before claiming it is resolved.
+
 ## Repository Focus
 
 - Project: {project_name}
@@ -183,7 +196,8 @@ DOC_FILES = {
 
 - Capture desktop and mobile evidence for significant UI changes.
 - Assert primary text, controls, selected state, loading state, empty state, error state, and primary interactions from the DOM or accessibility tree.
-- Check layout invariants: no critical overlap, no clipped primary text, stable toolbars/grids, usable tap targets, and visible focus or selected states.
+- Define and verify layout invariants for the changed surface, including readable content, non-overlapping controls, usable primary work area, stable fixed-format elements, and reachable actions.
+- For responsive UI, verify that navigation, side panels, inspectors, toolbars, and secondary panes preserve the primary task area at intended breakpoints.
 - For canvas, WebGL, or game UIs, add pixel or scene-state checks so a blank render cannot pass.
 - Record browser limitations and fallback checks instead of claiming full UX validation when browser evidence is unavailable.
 """,
@@ -471,9 +485,10 @@ Describe the desired first successful experience for a new user of {project_name
 1. Convert product requirements into explicit product contract checks before scoring.
 2. Run deterministic validation first: tests, API smoke checks, CLI checks, browser actions, and state assertions.
 3. For frontend work, capture browser evidence: screenshots, DOM/accessibility snapshots, responsive checks, and layout invariants.
-4. Log every discovered bug or evidence gap with `defect-log` before running `quality-score`.
-5. Resolve defects only after fixes have passing evidence, then rerun validation and `quality-score`.
-6. Report per-case results, failed assertions, artifact paths, and recommended next actions to the user.
+4. For frontend issue reports, read `docs/FRONTEND.md` and `docs/DESIGN.md`, reproduce the relevant workflow and viewport, then turn the finding into assertions or a regression case.
+5. Log every discovered bug or evidence gap with `defect-log` before running `quality-score`.
+6. Resolve defects only after fixes have passing evidence, then rerun validation and `quality-score`.
+7. Report per-case results, failed assertions, artifact paths, and recommended next actions to the user.
 """,
 }
 
