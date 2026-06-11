@@ -72,6 +72,10 @@ Confirmed defects or evidence gaps should be logged into the active plan before 
 Each `quality-score` dimension must include a concrete evidence note. A numeric score without
 evidence is not a valid readiness signal.
 
+Use exact evidence when closing knowledge items: the text passed to `knowledge-mark-written`
+must already appear in the durable destination doc. If the destination uses different wording,
+copy a short phrase from that destination into an evidence file and pass `--evidence-file`.
+
 ## Frontend Checks
 
 For frontend work, use browser evidence instead of relying on a screenshot glance:

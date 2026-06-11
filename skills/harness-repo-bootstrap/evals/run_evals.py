@@ -895,6 +895,79 @@ def test_quality_score_requires_notes(tmp_root):
         raise AssertionError("quality-score should not write placeholder notes when evidence is required")
 
 
+def test_knowledge_evidence_verbatim(tmp_root):
+    repo = tmp_root / "knowledge-evidence-repo"
+    repo.mkdir()
+    answers = tmp_root / "knowledge-evidence-answers.json"
+    write_answers(answers, project_name="knowledge-evidence-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "knowledge-evidence",
+        "--goal",
+        "Validate durable knowledge evidence must be exact destination text",
+    )
+    plan_path = Path(plan_result["plan"])
+    relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    fact = "Snake non-growth movement may enter the current tail cell because the tail leaves during the same tick"
+    log_result = run_manager(
+        "knowledge-log",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--fact",
+        fact,
+        "--destination",
+        "docs/product-specs/snake.md",
+    )
+    destination = repo / "docs" / "product-specs" / "snake.md"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    exact_evidence = "On a non-eating tick, moving into the current tail cell is legal because the tail leaves during the same tick."
+    destination.write_text(f"# Snake Rules\n\n- {exact_evidence}\n")
+
+    paraphrase_result = run_manager(
+        "knowledge-mark-written",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--id",
+        log_result["id"],
+        "--evidence",
+        "docs/product-specs/snake.md now states the tail-vacating rule.",
+        expect_success=False,
+    )
+    if paraphrase_result:
+        raise AssertionError("Paraphrased knowledge evidence should not succeed")
+    plan_text_after_failure = plan_path.read_text()
+    if f"- [x] [id:{log_result['id']}]" in plan_text_after_failure:
+        raise AssertionError("Failed knowledge evidence should not close the knowledge item")
+
+    evidence_file = tmp_root / "snake-evidence.txt"
+    evidence_file.write_text(exact_evidence + "\n")
+    run_manager(
+        "knowledge-mark-written",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--id",
+        log_result["id"],
+        "--evidence-file",
+        str(evidence_file),
+    )
+    plan_text = plan_path.read_text()
+    if f"- [x] [id:{log_result['id']}]" not in plan_text:
+        raise AssertionError("Exact destination evidence should close the knowledge item")
+    if f"| evidence: {exact_evidence}" not in plan_text:
+        raise AssertionError("Closed knowledge item should record the exact verification evidence")
+
+
 def test_eval_report_shape(tmp_root):
     case_metadata = load_case_metadata()
     report = build_report(
@@ -942,6 +1015,7 @@ EVALS = [
     ("plan-path-canonicalization", test_plan_path_canonicalization),
     ("defect-recovery-loop", test_defect_recovery_loop),
     ("quality-score-requires-notes", test_quality_score_requires_notes),
+    ("knowledge-evidence-verbatim", test_knowledge_evidence_verbatim),
     ("eval-report-shape", test_eval_report_shape),
     ("preserve-unmanaged-docs", test_preserve_unmanaged_docs),
 ]

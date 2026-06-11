@@ -28,6 +28,10 @@
     "description": "Quality scoring should reject missing evidence notes and name the missing dimensions."
   },
   {
+    "id": "knowledge-evidence-verbatim",
+    "description": "Knowledge closure should reject paraphrased evidence and accept exact destination text."
+  },
+  {
     "id": "eval-report-shape",
     "description": "Eval output should expose structured per-case scores, findings, user-facing messages, and recommended actions."
   },
