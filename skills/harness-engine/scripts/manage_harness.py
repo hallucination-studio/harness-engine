@@ -279,11 +279,15 @@ Primary users: {primary_users}
 
 Frontend context: {frontend_stack_notes}
 
-This document is the repository-owned visual system. It follows the DESIGN.md pattern of YAML tokens plus markdown rationale, using `/Users/murphy/code/github/design.md` only as a local reference for structure. Do not depend on external design-generation skills or packages during init.
+Requested style direction: {design_style_direction}
+
+Existing frontend code signals: {existing_frontend_style_notes}
+
+This document is the repository-owned visual system. It follows the DESIGN.md pattern of YAML tokens plus markdown rationale, using `/Users/murphy/code/github/design.md` only as a local reference for structure. Do not depend on external design-generation skills or packages during init. Refine this file from the human-confirmed style direction and the existing code signals above before large UI work.
 
 ## Colors
 
-Use the YAML tokens as the source of truth. Replace the starter palette with project-specific colors before major UI implementation.
+Use the YAML tokens as the source of truth. Replace the starter palette with project-specific colors before major UI implementation. Derive replacements from the human-confirmed style direction and existing frontend code, not from an external generator.
 
 - **Primary:** Core text, navigation, and durable brand presence.
 - **Secondary:** Metadata, borders, captions, and lower-emphasis UI.
@@ -325,6 +329,7 @@ Define component treatment before scaling UI work:
 ## Do's and Don'ts
 
 - Do update this file with project-specific visual decisions before large UI changes.
+- Do reconcile the requested style direction with the current frontend code before changing shared styles.
 - Do keep tokens and prose aligned: tokens provide exact values, prose explains when to use them.
 - Do cite this file in frontend plans and code-review notes when UI choices matter.
 - Do validate meaningful UI work in a real browser before closing it out.
@@ -345,6 +350,10 @@ Primary users: {primary_users}
 
 Product purpose: {project_summary}
 
+Requested style direction: {design_style_direction}
+
+Existing frontend code signals: {existing_frontend_style_notes}
+
 ## Scope
 
 {frontend_scope}
@@ -361,6 +370,7 @@ Product purpose: {project_summary}
 
 - Read `docs/DESIGN.md` before implementing frontend, UI, layout, visual-state, canvas, or interaction work.
 - Treat `docs/DESIGN.md` as the project-owned unified visual specification. It is written and maintained in this repository.
+- Use the human-confirmed style direction and existing frontend code signals as the inputs for refining `docs/DESIGN.md`.
 - Treat `docs/DESIGN.md` as the source of truth for UI tokens, colors, typography, spacing, radius, elevation, component treatment, and Do's and Don'ts.
 - Files controlled by `docs/DESIGN.md` include token notes under `docs/design-docs/`, Tailwind theme files, global CSS variables, component theme modules, Storybook/theme previews, and any UI implementation that consumes those tokens or style rules.
 - Agents must read in this order for UI work: `docs/FRONTEND.md`, `docs/DESIGN.md`, then the component, theme, or stylesheet being changed.
@@ -384,7 +394,7 @@ Product purpose: {project_summary}
     "docs/design-docs/style-options.md": """{marker}
 # Design System Control
 
-The project owns `docs/DESIGN.md`. Harness Engine initializes the document from a local template inspired by `/Users/murphy/code/github/design.md` structure, then the project refines it with its own product and brand decisions.
+The project owns `docs/DESIGN.md`. Harness Engine initializes the document from a local template inspired by `/Users/murphy/code/github/design.md` structure, then the project refines it with its own product, brand, human-confirmed style direction, and existing frontend code.
 
 ## Controlled Files
 
@@ -732,6 +742,11 @@ QUESTION_CATALOG = [
         "reason": "Needed for design and frontend policies.",
     },
     {
+        "id": "design_style_direction",
+        "prompt": "If there is a frontend, what visual style should the project follow? Describe the concrete reference, mood, density, color/typography preferences, and hard don'ts.",
+        "reason": "Needed to generate the project-owned DESIGN.md without external design-generation skills.",
+    },
+    {
         "id": "quality_focus",
         "prompt": "Which product areas or architectural layers deserve the strictest quality scoring?",
         "reason": "Needed for QUALITY_SCORE.md.",
@@ -841,6 +856,42 @@ def detect_package_managers(repo):
     return package_managers
 
 
+def detect_frontend_style_files(files):
+    style_files = []
+    style_markers = (
+        ".css",
+        ".scss",
+        ".sass",
+        ".less",
+        "tailwind.config.js",
+        "tailwind.config.ts",
+        "postcss.config.js",
+        "postcss.config.ts",
+        "theme.js",
+        "theme.ts",
+        "tokens.js",
+        "tokens.ts",
+        "tokens.json",
+    )
+    path_keywords = (
+        "/styles/",
+        "/style/",
+        "/theme/",
+        "/themes/",
+        "/tokens/",
+        "/components/",
+        "/ui/",
+        "/app/",
+        "/src/",
+    )
+    for file_path in files:
+        lower = file_path.lower()
+        if lower.endswith(style_markers) or any(keyword in f"/{lower}" for keyword in path_keywords):
+            if lower.endswith((".js", ".jsx", ".ts", ".tsx", ".css", ".scss", ".sass", ".less", ".json")):
+                style_files.append(file_path)
+    return sorted(dict.fromkeys(style_files))[:20]
+
+
 def list_repo_files(repo):
     ignored = {".git", ".codex", "node_modules", ".next", "dist", "build", "__pycache__"}
     results = []
@@ -868,6 +919,8 @@ def detect_existing_managed_files(repo):
 def make_default_answers(analysis):
     repo_name = analysis["project_name"]
     frameworks = ", ".join(analysis["frameworks"]) or "Unknown"
+    style_files = analysis.get("frontend_style_files") or []
+    style_file_summary = ", ".join(style_files) if style_files else "No shared style, theme, token, or component style files detected yet."
     has_frontend = analysis["has_frontend"]
     frontend_scope = (
         "User-facing or operator-facing frontend work is expected."
@@ -897,6 +950,12 @@ def make_default_answers(analysis):
             if has_frontend
             else "No frontend detected. Replace this if the repo includes UI work."
         ),
+        "design_style_direction": (
+            "Describe the concrete visual direction before major UI work: reference point, mood, density, palette, typography, component shape, and hard don'ts."
+            if has_frontend
+            else "No frontend detected."
+        ),
+        "existing_frontend_style_notes": style_file_summary,
         "quality_focus": "List the product areas and architectural layers that deserve the strictest quality bar.",
         "frontend_scope": frontend_scope,
         "frontend_validation_loop": frontend_validation_loop,
@@ -2167,6 +2226,7 @@ def analyze_repo(repo):
     has_frontend = any(name in frameworks for name in ["Next.js", "React", "Vue", "Svelte", "Vite"]) or any(
         file.endswith((".tsx", ".jsx", ".css", ".scss")) for file in files
     )
+    frontend_style_files = detect_frontend_style_files(files) if has_frontend else []
     existing_managed = detect_existing_managed_files(repo)
     existing_harness = [
         file for file in ["AGENTS.md", "ARCHITECTURE.md", "docs/PLANS.md", "docs/SECURITY.md"] if (repo / file).exists()
@@ -2211,11 +2271,12 @@ def analyze_repo(repo):
             if has_frontend
             else "No obvious frontend surface detected from the repository."
         ),
+        "frontend_style_files": frontend_style_files,
     }
 
     human_confirmations = []
     for question in QUESTION_CATALOG:
-        if question["id"] == "frontend_stack_notes" and not has_frontend:
+        if question["id"] in {"frontend_stack_notes", "design_style_direction"} and not has_frontend:
             continue
         human_confirmations.append(question)
 
@@ -2226,6 +2287,7 @@ def analyze_repo(repo):
         "frameworks": frameworks,
         "package_managers": package_managers,
         "has_frontend": has_frontend,
+        "frontend_style_files": frontend_style_files,
         "inferred_answers": inferred_answers,
         "existing_harness_files": existing_harness,
         "existing_managed_files": existing_managed,

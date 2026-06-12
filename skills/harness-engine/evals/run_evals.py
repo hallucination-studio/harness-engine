@@ -46,6 +46,7 @@ def write_answers(path, project_name="demo"):
         "reliability_targets": "Repeatable local commands and safe init behavior",
         "security_constraints": "Do not write secrets or overwrite user-owned docs without consent",
         "frontend_stack_notes": "Frontend changes require browser validation when a UI is detected",
+        "design_style_direction": "A restrained developer-tool interface with high-contrast text, calm neutral surfaces, compact spacing, and no decorative gradients.",
         "quality_focus": "installer behavior, generated docs, plan closure, and knowledge capture",
         "frontend_scope": "No frontend unless one is detected by analysis",
     }
@@ -169,8 +170,12 @@ def test_frontend_analysis(tmp_root):
         raise AssertionError("Frontend repo should be detected")
     if "frontend_stack_notes" not in question_ids:
         raise AssertionError("Frontend repo should ask frontend confirmation questions")
+    if "design_style_direction" not in question_ids:
+        raise AssertionError("Frontend repo should ask for the desired visual style direction")
     if "React" not in analysis["frameworks"]:
         raise AssertionError("React should be detected")
+    if "src/App.tsx" not in analysis["frontend_style_files"]:
+        raise AssertionError("Frontend analysis should expose existing frontend code signals")
     if "docs/sops/evidence-first-eval-loop.md" not in analysis["missing_sops"]:
         raise AssertionError("Analysis should include the evidence-first eval SOP")
 
@@ -1191,6 +1196,8 @@ def test_frontend_design_control_plane(tmp_root):
     repo = tmp_root / "frontend-design-control-repo"
     repo.mkdir()
     (repo / "package.json").write_text(json.dumps({"dependencies": {"react": "^19.0.0", "vite": "^6.0.0"}}))
+    (repo / "src" / "styles").mkdir(parents=True)
+    (repo / "src" / "styles" / "theme.css").write_text(":root { --color-primary: #1A1C1E; }\n")
     answers = tmp_root / "frontend-design-control-answers.json"
     write_answers(answers, project_name="frontend-design-control-demo")
     run_manager("init", "--repo", str(repo), "--answers", str(answers))
@@ -1201,6 +1208,9 @@ def test_frontend_design_control_plane(tmp_root):
         raise AssertionError("DESIGN.md should start with YAML frontmatter, not the harness marker")
     for needle in [
         "## Project Positioning",
+        "Requested style direction:",
+        "Existing frontend code signals:",
+        "src/styles/theme.css",
         "Read `docs/DESIGN.md` before implementing frontend",
         "project-owned unified visual specification",
         "Files controlled by `docs/DESIGN.md` include token notes",
@@ -1222,6 +1232,9 @@ def test_frontend_design_control_plane(tmp_root):
         "spacing:",
         "components:",
         "## Overview",
+        "Requested style direction:",
+        "Existing frontend code signals:",
+        "src/styles/theme.css",
         "## Colors",
         "## Typography",
         "## Layout",
@@ -1230,6 +1243,7 @@ def test_frontend_design_control_plane(tmp_root):
         "## Components",
         "## Do's and Don'ts",
         "Do not depend on external design-generation skills or packages during init",
+        "A restrained developer-tool interface",
     ]:
         if needle not in design_text:
             raise AssertionError(f"DESIGN.md should contain project-owned design spec structure: {needle}")

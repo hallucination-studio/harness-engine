@@ -36,11 +36,14 @@ Passing criteria:
 - Backend-only repositories do not receive `docs/FRONTEND.md`, `docs/DESIGN.md`, or
   `docs/design-docs/`.
 - Frontend repositories receive `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/design-docs/`.
+- Frontend analysis asks the human for the desired visual style direction and records detected
+  style-code signals such as shared CSS, theme, token, UI, and component files.
 - Generated `docs/DESIGN.md` follows the local `/Users/murphy/code/github/design.md` document
   pattern: YAML design tokens plus markdown sections for Overview, Colors, Typography, Layout,
   Elevation & Depth, Shapes, Components, and Do's and Don'ts.
-- Generated `docs/FRONTEND.md` explicitly records project positioning, frontend scope, stack notes,
-  validation expectations, controlled files, and read order.
+- Generated `docs/FRONTEND.md` explicitly records project positioning, requested style direction,
+  existing frontend code signals, frontend scope, stack notes, validation expectations, controlled
+  files, and read order.
 - `pack:check` includes `.codex-plugin/**`, `skills/harness-engine/**`, `agents`, `assets`,
   `references`, `scripts`, and eval sources, but does not include external design source,
   design adapter skills, `third_party/`, `__pycache__`, `.pyc`, local `.codex`, or tarball artifacts.

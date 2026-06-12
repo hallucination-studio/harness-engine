@@ -5,7 +5,7 @@
   },
   {
     "id": "frontend-analysis",
-    "description": "Frontend repositories should trigger frontend-specific confirmation and policy output."
+    "description": "Frontend repositories should trigger frontend-specific confirmations, including desired style direction, and expose existing style-code signals."
   },
   {
     "id": "init-reconciles-existing-harness",
@@ -57,7 +57,7 @@
   },
   {
     "id": "frontend-design-control-plane",
-    "description": "Frontend repositories should receive FRONTEND.md and a project-owned DESIGN.md specification template."
+    "description": "Frontend repositories should receive FRONTEND.md and a project-owned DESIGN.md specification template seeded from style direction and existing code signals."
   },
   {
     "id": "no-external-design-dependency",

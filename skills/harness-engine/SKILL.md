@@ -12,7 +12,7 @@ Run the packaged script to inspect the target repository before editing files. U
 1. Run `python3 scripts/manage_harness.py analyze --repo <target-repo> --output <analysis.json>`.
 2. Read `analysis.json`.
 3. Ask the human only the unresolved, high-impact questions from `human_confirmations`.
-4. During initialization, create frontend design docs only when the analysis detects a frontend surface. Frontend repos get `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/design-docs/`; backend-only repos do not. The generated `docs/DESIGN.md` is a project-owned visual specification shaped like DESIGN.md: YAML tokens plus markdown rationale. Do not call external design-generation skills or packages during init.
+4. During initialization, create frontend design docs only when the analysis detects a frontend surface. Frontend repos get `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/design-docs/`; backend-only repos do not. Ask the human for the desired visual style direction and use existing frontend style files as evidence. The generated `docs/DESIGN.md` is a project-owned visual specification shaped like DESIGN.md: YAML tokens plus markdown rationale. Do not call external design-generation skills or packages during init.
 5. Run `python3 scripts/manage_harness.py sample-answers --analysis <analysis.json> --output <answers.json>`.
 6. Fill the placeholders in `answers.json` from the repository and the human's confirmed answers.
 7. Run `python3 scripts/manage_harness.py init --repo <target-repo> --answers <answers.json>`. This is the single workspace entrypoint: it creates a new harness when none exists, and reconciles a managed or partial harness when managed harness files are already present. Reconcile refreshes managed files, backfills newly introduced managed files, and preserves unmanaged user files. Pass `--force` only with explicit user approval.
@@ -74,7 +74,7 @@ Run the packaged script to inspect the target repository before editing files. U
 
 Harness-engine has no external design runtime dependency and must not call an external design skill during init. It uses the local `/Users/murphy/code/github/design.md` checkout only as a reference for document shape.
 
-For frontend repositories, `docs/FRONTEND.md` records product positioning, scope, stack notes, validation expectations, controlled files, and read order. `docs/DESIGN.md` records the unified visual specification with YAML tokens and markdown rationale. For backend-only repositories, these files are not generated.
+For frontend repositories, `docs/FRONTEND.md` records product positioning, requested style direction, existing frontend code signals, scope, stack notes, validation expectations, controlled files, and read order. `docs/DESIGN.md` records the unified visual specification with YAML tokens and markdown rationale. For backend-only repositories, these files are not generated.
 
 ## Output Rules
 

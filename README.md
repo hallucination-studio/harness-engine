@@ -25,7 +25,7 @@ ask for missing high-impact facts, create the harness files, and keep future wor
 - Supports durable knowledge closure with stable knowledge IDs and evidence text, so permanent docs can use natural wording instead of duplicated checklist strings.
 - Enforces a local quality gate for execution plans; failed scores write `## Rework Required` into the plan and block `plan-close`.
 - Tracks resumable workstreams so interrupted features, refactors, reliability work, and cleanup efforts can be recovered from repo state instead of chat history.
-- For frontend projects, initializes a repository-owned visual specification based on the local DESIGN.md format pattern: YAML design tokens plus markdown rationale.
+- For frontend projects, asks for the desired visual style and initializes a repository-owned visual specification based on the local DESIGN.md format pattern: YAML design tokens plus markdown rationale.
 
 ## Why It Exists
 
@@ -87,8 +87,8 @@ during `init`. When a target repository has no frontend, it does not generate `d
 
 When a frontend is detected, Harness Engine creates:
 
-- `docs/FRONTEND.md`: project positioning, frontend scope, stack notes, validation loop, and the read order for UI work.
-- `docs/DESIGN.md`: a project-owned unified visual specification using YAML design tokens plus markdown rationale.
+- `docs/FRONTEND.md`: project positioning, requested style direction, existing frontend code signals, frontend scope, stack notes, validation loop, and the read order for UI work.
+- `docs/DESIGN.md`: a project-owned unified visual specification using YAML design tokens plus markdown rationale, seeded from the human-confirmed style direction and existing frontend code signals.
 - `docs/design-docs/`: durable design decisions and style-system notes.
 
 The templates are informed by the local reference checkout at `/Users/murphy/code/github/design.md`

@@ -28,15 +28,16 @@ Keep reusable methodology in `docs/ACCEPTANCE_PLAN.md`; keep run-specific eviden
 | --- | --- | --- |
 | Backend-only init skips UI docs | Pass | Backend-shaped repos do not receive `docs/FRONTEND.md`, `docs/DESIGN.md`, or `docs/design-docs/`. |
 | Frontend init creates UI docs | Pass | Frontend-shaped repos receive `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/design-docs/`. |
-| `FRONTEND.md` controls readers | Pass | Generated `docs/FRONTEND.md` records project positioning, scope, stack notes, controlled files, and read order. |
-| `DESIGN.md` is local template | Pass | Generated `docs/DESIGN.md` includes YAML tokens and markdown sections for Overview, Colors, Typography, Layout, Elevation & Depth, Shapes, Components, and Do's and Don'ts. |
+| Style direction captured | Pass | Frontend analysis asks for desired visual style direction and lists detected style-code signals. |
+| `FRONTEND.md` controls readers | Pass | Generated `docs/FRONTEND.md` records project positioning, requested style direction, existing frontend code signals, scope, stack notes, controlled files, and read order. |
+| `DESIGN.md` is local template | Pass | Generated `docs/DESIGN.md` includes YAML tokens and markdown sections for Overview, Colors, Typography, Layout, Elevation & Depth, Shapes, Components, and Do's and Don'ts, seeded with the requested style direction and existing code signals. |
 | No external design dependency | Pass | README, SKILL.md, and generated templates do not instruct agents to call external design-generation skills or install design packages during init. |
 
 ### Findings
 
 - Harness Engine now treats frontend/design docs as conditional outputs, not universal harness files.
 - The design template is self-contained and project-owned. `/Users/murphy/code/github/design.md` is
-  only a reference for document structure.
+  only a reference for document structure; style inputs come from the human and current repository.
 - Package checks still prevent external design source or local adapter skills from entering the
   install artifact.
 
