@@ -24,9 +24,9 @@
     "skills/**/agents/**",
     "skills/**/assets/**",
     "skills/**/evals/*.json",
-    "skills/**/evals/*.py",
+    "skills/**/evals/**/*.py",
     "skills/**/references/**",
-    "skills/**/scripts/*.py"
+    "skills/**/scripts/**/*.py"
   ],
   "license": "MIT"
 }

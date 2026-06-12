@@ -17,13 +17,18 @@ execFileSync(process.execPath, [installer, "install", "--path", target], {
 const skill = path.join(target, "harness-engine");
 const skillFile = path.join(skill, "SKILL.md");
 const manager = path.join(skill, "scripts", "manage_harness.py");
+const managerCli = path.join(skill, "scripts", "harness_engine", "cli.py");
+const evalRunner = path.join(skill, "evals", "run_evals.py");
+const evalPackageRunner = path.join(skill, "evals", "harness_engine_evals", "runner.py");
 
 if (!fs.existsSync(skillFile)) {
   throw new Error(`Missing installed skill file: ${skillFile}`);
 }
 
-if (!fs.existsSync(manager)) {
-  throw new Error(`Missing installed manager script: ${manager}`);
+for (const requiredPath of [manager, managerCli, evalRunner, evalPackageRunner]) {
+  if (!fs.existsSync(requiredPath)) {
+    throw new Error(`Missing installed Python runtime file: ${requiredPath}`);
+  }
 }
 
 const where = execFileSync(process.execPath, [installer, "where", "--path", target], {

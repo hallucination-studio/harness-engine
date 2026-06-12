@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "plan_id": "plan-5a5fcbf982",
+  "goal": "Split harness-engine Python runtime and eval monoliths into behavior-preserving packages while keeping public wrapper paths stable.",
+  "created_at": "2026-06-12T03:40:37Z",
+  "updated_at": "2026-06-12T03:47:10Z",
+  "acceptance_contract": {
+    "status": "ready",
+    "criteria": {
+      "product_correctness": "The existing manage_harness.py and evals/run_evals.py public entrypoint paths remain executable with the same commands, arguments, JSON schemas, and exit-code behavior.",
+      "ux_operator_clarity": "Developers can continue using python3 skills/harness-engine/scripts/manage_harness.py, python3 skills/harness-engine/evals/run_evals.py, npm test, smoke:install, and pack:check without learning new commands.",
+      "architecture_maintainability": "Runtime logic is moved into cohesive standard-library-only Python packages under scripts/harness_engine and evals/harness_engine_evals with one-way imports and thin wrappers.",
+      "reliability_observability": "All 23 harness eval cases pass after the split, representative CLI smoke commands pass, and package/install checks include nested Python modules.",
+      "security_data_handling": "The refactor does not introduce new dependencies, network calls, credential handling, or broader filesystem side effects beyond the existing CLI behavior."
+    },
+    "fingerprint": "27e2877eda920a22"
+  },
+  "quality_result": {
+    "status": "pass",
+    "minimum": 8.0,
+    "average": 9.0,
+    "scored_at": "2026-06-12T03:46:55Z",
+    "criteria_fingerprint": "27e2877eda920a22",
+    "dimensions": {
+      "product_correctness": {
+        "score": 9.0,
+        "evidence": "python3 skills/harness-engine/scripts/manage_harness.py --help, analyze, sample-answers, and quality-score failure-path CLI checks produced expected JSON/CLI outputs."
+      },
+      "ux_operator_clarity": {
+        "score": 9.0,
+        "evidence": "npm test, npm run smoke:install, and npm run pack:check remained the same developer commands and passed."
+      },
+      "architecture_maintainability": {
+        "score": 9.0,
+        "evidence": "Reviewed code paths skills/harness-engine/scripts/harness_engine/cli.py, skills/harness-engine/scripts/manage_harness.py, skills/harness-engine/evals/harness_engine_evals/registry.py, and skills/harness-engine/evals/run_evals.py after py_compile passed."
+      },
+      "reliability_observability": {
+        "score": 9.0,
+        "evidence": "python3 skills/harness-engine/evals/run_evals.py and npm test both passed all 23 harness eval cases."
+      },
+      "security_data_handling": {
+        "score": 9.0,
+        "evidence": "Review of changed files shows no new dependencies, network calls, credential paths, or expanded sensitive-data handling."
+      }
+    }
+  },
+  "defects": [],
+  "knowledge_items": [],
+  "implementation_dirty_after_score": false,
+  "dirty_reasons": [],
+  "markdown_path": "/Users/murphy/code/github/harness-engine/docs/exec-plans/completed/2026-06-12-python-runtime-split.md"
+}
