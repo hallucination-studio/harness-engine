@@ -1,6 +1,6 @@
 {
   "name": "harness-engine",
   "version": "1.0.0",
-  "description": "Repository harness skill for Codex with Google DESIGN.md control-plane guidance.",
+  "description": "Repository harness skill for Codex with optional frontend design-doc templates.",
   "skills": "./skills/"
 }

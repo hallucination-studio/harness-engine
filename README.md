@@ -14,7 +14,8 @@ ask for missing high-impact facts, create the harness files, and keep future wor
 
 - Installs the `harness-engine` Codex skill locally, globally, or into a custom skills directory.
 - Provides a repository analyzer that detects language, package manager, frontend signals, existing harness files, missing execution-plan state, and missing SOPs.
-- Generates a short routing-style `AGENTS.md` plus durable system-of-record docs such as `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md`, `docs/QUALITY_SCORE.md`, and `docs/FRONTEND.md`.
+- Generates a short routing-style `AGENTS.md` plus durable system-of-record docs such as `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md`, and `docs/QUALITY_SCORE.md`.
+- Generates `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/design-docs/` only when a frontend surface is detected.
 - Creates execution-plan folders for active and completed plans.
 - Adds SOPs for architecture setup, knowledge capture, local observability, and UI validation.
 - Reconciles managed harnesses through the same `init` flow, refreshing managed files and backfilling newly introduced managed files while preserving unmanaged docs.
@@ -24,7 +25,7 @@ ask for missing high-impact facts, create the harness files, and keep future wor
 - Supports durable knowledge closure with stable knowledge IDs and evidence text, so permanent docs can use natural wording instead of duplicated checklist strings.
 - Enforces a local quality gate for execution plans; failed scores write `## Rework Required` into the plan and block `plan-close`.
 - Tracks resumable workstreams so interrupted features, refactors, reliability work, and cleanup efforts can be recovered from repo state instead of chat history.
-- Generates a frontend/design control plane that tells target projects to own `docs/DESIGN.md` and validate or export it with the official `@google/design.md` package.
+- For frontend projects, initializes a repository-owned visual specification based on the local DESIGN.md format pattern: YAML design tokens plus markdown rationale.
 
 ## Why It Exists
 
@@ -78,34 +79,21 @@ Show where the plugin bundle would be installed:
 npx @hallucination-studio/harness-engine where --local
 ```
 
-## Target Project Dependency: Google DESIGN.md
+## Frontend Design Docs
 
-Harness Engine depends on the official Google DESIGN.md workflow for frontend style creation, but
-does not bundle Google source code or install Google's package for the user. Install Google
-DESIGN.md as a dev dependency in each target project that needs frontend style creation,
-validation, diffs, or token exports:
+Harness Engine has no external design runtime dependency and never calls an external design skill
+during `init`. When a target repository has no frontend, it does not generate `docs/FRONTEND.md`,
+`docs/DESIGN.md`, or `docs/design-docs/`.
 
-```bash
-npm install --save-dev @google/design.md
-```
+When a frontend is detected, Harness Engine creates:
 
-Use Google/Stitch to create the real `docs/DESIGN.md` through one of Google's documented paths:
+- `docs/FRONTEND.md`: project positioning, frontend scope, stack notes, validation loop, and the read order for UI work.
+- `docs/DESIGN.md`: a project-owned unified visual specification using YAML design tokens plus markdown rationale.
+- `docs/design-docs/`: durable design decisions and style-system notes.
 
-- Create from a prompt in Stitch by describing the intended vibe, product, audience, and interaction feel.
-- Derive from branding in Stitch by providing a brand URL or image.
-- Write it by hand as markdown with optional YAML frontmatter.
-
-Then validate or export from the target repository:
-
-```bash
-npx @google/design.md lint docs/DESIGN.md
-npx @google/design.md export docs/DESIGN.md --format css-tailwind
-npx @google/design.md diff docs/DESIGN.md docs/DESIGN.next.md
-```
-
-Harness Engine's role is to generate the control plane: `docs/FRONTEND.md` tells agents to read
-`docs/DESIGN.md`, defines which project files are controlled by it, and blocks treating the
-placeholder `status: design-source-required` DESIGN.md as an approved visual style.
+The templates are informed by the local reference checkout at `/Users/murphy/code/github/design.md`
+for document shape only. The target project owns the content and should replace starter tokens and
+prose with its concrete product style before substantial UI work.
 
 ## Update An Installed Skill Package
 
@@ -179,26 +167,7 @@ The installed skill exposes the underlying script at:
 python3 .codex/skills/harness-engine/scripts/manage_harness.py --help
 ```
 
-For frontend or visual-design work, the generated harness uses `docs/FRONTEND.md` to route agents through `docs/DESIGN.md`. Harness Engine does not generate style, choose themes, extract branding, or vendor Google DESIGN.md code.
-
-Create the real `docs/DESIGN.md` through one of Google's documented paths:
-
-- Create from a prompt in Stitch by describing the intended vibe, product, audience, and interaction feel.
-- Derive from branding in Stitch by providing a brand URL or image.
-- Write it by hand as markdown with optional YAML frontmatter.
-
-Use Google's examples as references, not vendored source: `https://github.com/google-labs-code/design.md/tree/main/examples`.
-
-Install the official package in the target project when the project wants DESIGN.md validation, diffs, or token exports:
-
-```bash
-npm install --save-dev @google/design.md
-npx @google/design.md lint docs/DESIGN.md
-npx @google/design.md export docs/DESIGN.md --format css-tailwind
-npx @google/design.md diff docs/DESIGN.md docs/DESIGN.next.md
-```
-
-`docs/FRONTEND.md` defines which files are controlled by `docs/DESIGN.md`: generated token exports under `docs/design-docs/` or `src/styles/`, Tailwind theme files, global CSS variables, component theme modules, Storybook/theme previews, and UI implementation files that consume those tokens. Agents should read `docs/FRONTEND.md`, then `docs/DESIGN.md`, then generated token exports before changing controlled UI files.
+For frontend or visual-design work, the generated harness uses `docs/FRONTEND.md` to route agents through `docs/DESIGN.md`. `docs/FRONTEND.md` defines which files are controlled by `docs/DESIGN.md`: design notes under `docs/design-docs/`, Tailwind theme files, global CSS variables, component theme modules, Storybook/theme previews, and UI implementation files that consume shared tokens or style rules. Agents should read `docs/FRONTEND.md`, then `docs/DESIGN.md`, then the relevant component, theme, or stylesheet.
 
 Common commands:
 

@@ -134,47 +134,13 @@ def test_empty_repo_init(tmp_root):
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Backend and runtime scores must cite")
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Architecture scores must cite")
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Security scores must cite")
-    assert_contains(repo, "docs/FRONTEND.md", "Evidence For Meaningful UI Work")
-    assert_contains(repo, "docs/FRONTEND.md", "Define and verify layout invariants")
-    assert_contains(repo, "docs/FRONTEND.md", "preserve the primary task area")
-    assert_contains(repo, "docs/FRONTEND.md", "Read `docs/DESIGN.md` before implementing frontend")
-    assert_contains(repo, "docs/FRONTEND.md", "status: design-source-required")
-    assert_contains(repo, "docs/FRONTEND.md", "prompt in Stitch, brand URL/image import in Stitch, or hand-authored markdown/YAML")
-    assert_contains(repo, "docs/FRONTEND.md", "npm install --save-dev @google/design.md")
-    assert_contains(repo, "docs/FRONTEND.md", "npx @google/design.md lint docs/DESIGN.md")
-    assert_contains(repo, "docs/FRONTEND.md", "Generated design-token files must be derived from `docs/DESIGN.md`")
-    assert_contains(repo, "docs/FRONTEND.md", "Files controlled by `docs/DESIGN.md` include design token exports")
-    assert_contains(repo, "docs/FRONTEND.md", "Agents must read in this order for UI work")
-    assert_contains(repo, "docs/DESIGN.md", "version: alpha")
-    assert_contains(repo, "docs/DESIGN.md", "status: design-source-required")
-    assert_contains(repo, "docs/DESIGN.md", "## Overview")
-    assert_contains(repo, "docs/DESIGN.md", "Create the actual DESIGN.md through one of the official Google DESIGN.md paths")
-    assert_contains(repo, "docs/DESIGN.md", "Create from a prompt in Stitch")
-    assert_contains(repo, "docs/DESIGN.md", "Derive from branding in Stitch")
-    assert_contains(repo, "docs/DESIGN.md", "Write it by hand")
-    assert_contains(repo, "docs/DESIGN.md", "https://github.com/google-labs-code/design.md/tree/main/examples")
-    assert_contains(repo, "docs/DESIGN.md", "npm install --save-dev @google/design.md")
-    assert_contains(repo, "docs/DESIGN.md", "npx @google/design.md lint docs/DESIGN.md")
-    assert_contains(repo, "docs/DESIGN.md", "npx @google/design.md export docs/DESIGN.md --format <format>")
-    assert_contains(repo, "docs/DESIGN.md", "Harness Engine does not generate visual style, choose themes, derive branding, or vendor Google DESIGN.md source")
-    for heading in [
-        "## Colors",
-        "## Typography",
-        "## Layout",
-        "## Elevation & Depth",
-        "## Shapes",
-        "## Components",
-        "## Do's and Don'ts",
+    for relative_path in [
+        "docs/FRONTEND.md",
+        "docs/DESIGN.md",
+        "docs/design-docs/style-options.md",
     ]:
-        assert_contains(repo, "docs/DESIGN.md", heading)
-    assert_exists(repo, "docs/design-docs/style-options.md")
-    assert_contains(repo, "docs/design-docs/style-options.md", "Official Creation Paths")
-    assert_contains(repo, "docs/design-docs/style-options.md", "Create from a prompt in Stitch")
-    assert_contains(repo, "docs/design-docs/style-options.md", "Derive from branding in Stitch")
-    assert_contains(repo, "docs/design-docs/style-options.md", "Write it by hand")
-    assert_contains(repo, "docs/design-docs/style-options.md", "npm install --save-dev @google/design.md")
-    assert_contains(repo, "docs/design-docs/style-options.md", "Controlled Files")
-    assert_contains(repo, "docs/design-docs/style-options.md", "Do not hand-edit generated token exports")
+        if (repo / relative_path).exists():
+            raise AssertionError(f"Empty backend-shaped repo should not receive frontend design docs: {relative_path}")
     assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Report per-case results")
     assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Read the Issue Workflows in `AGENTS.md`")
 
@@ -1200,96 +1166,104 @@ def test_eval_report_shape(tmp_root):
         raise AssertionError("Eval report should include a user-facing failure message")
 
 
-def test_official_google_design_cli_documented(tmp_root):
-    repo = tmp_root / "official-google-design-repo"
+def test_backend_init_skips_frontend_design_docs(tmp_root):
+    repo = tmp_root / "backend-only-repo"
     repo.mkdir()
-    answers = tmp_root / "official-google-design-answers.json"
-    write_answers(answers, project_name="official-google-design-demo")
+    (repo / "pyproject.toml").write_text('[project]\nname = "backend-only"\n')
+    answers = tmp_root / "backend-only-answers.json"
+    write_answers(answers, project_name="backend-only-demo")
     run_manager("init", "--repo", str(repo), "--answers", str(answers))
-    design_text = (repo / "docs" / "DESIGN.md").read_text()
-    options_text = (repo / "docs" / "design-docs" / "style-options.md").read_text()
-    skill_text = (SKILL_DIR / "SKILL.md").read_text()
-    for text, label in [(design_text, "DESIGN.md"), (options_text, "style-options.md"), (skill_text, "SKILL.md")]:
-        for needle in [
-            "Create from a prompt in Stitch",
-            "Derive from branding",
-            "Write it by hand",
-            "npm install --save-dev @google/design.md",
-            "npx @google/design.md lint docs/DESIGN.md",
-        ]:
-            if needle not in text:
-                raise AssertionError(f"{label} should document official Google DESIGN.md CLI usage: {needle}")
-    if "$google-design-style" in skill_text:
-        raise AssertionError("harness-engine SKILL.md should not route to a local google-design-style skill")
-    if "packaged Google DESIGN.md submodule" in skill_text:
-        raise AssertionError("harness-engine SKILL.md should not claim a packaged Google submodule")
-
-
-def test_readme_google_design_dependency_documented(tmp_root):
-    readme_text = (REPO_ROOT / "README.md").read_text()
-    for needle in [
-        "## Target Project Dependency: Google DESIGN.md",
-        "does not bundle Google source code or install Google's package for the user",
-        "npm install --save-dev @google/design.md",
-        "Use Google/Stitch to create the real `docs/DESIGN.md`",
-        "npx @google/design.md lint docs/DESIGN.md",
-        "Harness Engine's role is to generate the control plane",
+    for relative_path in [
+        "docs/FRONTEND.md",
+        "docs/DESIGN.md",
+        "docs/design-docs/index.md",
+        "docs/design-docs/style-options.md",
+        "docs/design-docs/core-beliefs.md",
     ]:
-        if needle not in readme_text:
-            raise AssertionError(f"README should document the Google DESIGN.md target dependency: {needle}")
+        if (repo / relative_path).exists():
+            raise AssertionError(f"Backend-only init should not create {relative_path}")
+    assert_exists(repo, "AGENTS.md")
+    assert_exists(repo, "ARCHITECTURE.md")
+    assert_exists(repo, "docs/QUALITY_SCORE.md")
 
 
 def test_frontend_design_control_plane(tmp_root):
     repo = tmp_root / "frontend-design-control-repo"
     repo.mkdir()
+    (repo / "package.json").write_text(json.dumps({"dependencies": {"react": "^19.0.0", "vite": "^6.0.0"}}))
     answers = tmp_root / "frontend-design-control-answers.json"
     write_answers(answers, project_name="frontend-design-control-demo")
     run_manager("init", "--repo", str(repo), "--answers", str(answers))
     frontend_text = (repo / "docs" / "FRONTEND.md").read_text()
+    design_text = (repo / "docs" / "DESIGN.md").read_text()
+    options_text = (repo / "docs" / "design-docs" / "style-options.md").read_text()
+    if not design_text.startswith("---\n"):
+        raise AssertionError("DESIGN.md should start with YAML frontmatter, not the harness marker")
     for needle in [
+        "## Project Positioning",
         "Read `docs/DESIGN.md` before implementing frontend",
-        "status: design-source-required",
-        "do not treat it as an approved visual style",
-        "Treat `docs/DESIGN.md` as the source of truth",
-        "Generated design-token files must be derived from `docs/DESIGN.md`",
-        "Files controlled by `docs/DESIGN.md` include design token exports",
+        "project-owned unified visual specification",
+        "Files controlled by `docs/DESIGN.md` include token notes",
         "Tailwind theme files",
         "global CSS variables",
         "component theme modules",
         "Storybook/theme previews",
         "Agents must read in this order for UI work",
-        "Do not hand-edit generated token exports",
+        "Do not call external design-generation skills or package CLIs as part of harness init",
     ]:
         if needle not in frontend_text:
             raise AssertionError(f"FRONTEND.md should define design control plane: {needle}")
+    for needle in [
+        "version: alpha",
+        "source: harness-engine-template",
+        "colors:",
+        "typography:",
+        "rounded:",
+        "spacing:",
+        "components:",
+        "## Overview",
+        "## Colors",
+        "## Typography",
+        "## Layout",
+        "## Elevation & Depth",
+        "## Shapes",
+        "## Components",
+        "## Do's and Don'ts",
+        "Do not depend on external design-generation skills or packages during init",
+    ]:
+        if needle not in design_text:
+            raise AssertionError(f"DESIGN.md should contain project-owned design spec structure: {needle}")
+    if "/Users/murphy/code/github/design.md" not in options_text:
+        raise AssertionError("style-options.md should document the local design.md reference path")
 
 
-def test_plugin_does_not_bundle_google_design(tmp_root):
-    manifest = REPO_ROOT / ".codex-plugin" / "plugin.json"
-    if not manifest.exists():
-        raise AssertionError("Missing plugin manifest")
-    manifest_data = json.loads(manifest.read_text())
-    if manifest_data.get("skills") != "./skills/":
-        raise AssertionError("Plugin manifest should expose ./skills/")
-    smoke = subprocess.run(
-        ["node", str(REPO_ROOT / "scripts" / "smoke_install.js")],
-        cwd=REPO_ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if smoke.returncode != 0:
-        raise AssertionError(smoke.stderr or smoke.stdout)
-    installed = json.loads(smoke.stdout)
-    if not Path(installed["installed"]).name == "harness-engine-plugin":
-        raise AssertionError("smoke install should report the installed plugin root")
-    if (REPO_ROOT / "skills" / "google-design-style").exists():
-        raise AssertionError("Package should not include a local google-design-style skill")
-    if (REPO_ROOT / "third_party" / "google-design-md").exists():
-        raise AssertionError("Package should not include Google DESIGN.md source")
+def test_no_external_design_dependency(tmp_root):
+    readme_text = (REPO_ROOT / "README.md").read_text()
+    skill_text = (SKILL_DIR / "SKILL.md").read_text()
+    manager_text = (SKILL_DIR / "scripts" / "manage_harness.py").read_text()
+    combined = "\n".join([readme_text, skill_text, manager_text])
+    forbidden = [
+        "@google/design.md",
+        "prompt in Stitch",
+        "brand URL/image import",
+        "$google-design-style",
+        "google-design-style",
+        "third_party/google-design-md",
+        "design-source-required",
+    ]
+    for needle in forbidden:
+        if needle in combined:
+            raise AssertionError(f"Harness Engine should not depend on external design integration text: {needle}")
+    for needle in [
+        "has no external design runtime dependency",
+        "never calls an external design skill",
+        "/Users/murphy/code/github/design.md",
+    ]:
+        if needle not in readme_text and needle not in skill_text:
+            raise AssertionError(f"Docs should state the dependency-free design boundary: {needle}")
 
 
-def test_pack_excludes_google_source(tmp_root):
+def test_pack_excludes_external_design_dependency(tmp_root):
     result = subprocess.run(
         ["npm", "pack", "--dry-run", "--json"],
         cwd=REPO_ROOT,
@@ -1314,11 +1288,11 @@ def test_pack_excludes_google_source(tmp_root):
             raise AssertionError(f"npm pack should include {required_path}")
     forbidden_prefixes = [
         "skills/google-design-style/",
-        "third_party/google-design-md/",
+        "third_party/",
     ]
     for file_path in files:
         if any(file_path.startswith(prefix) for prefix in forbidden_prefixes):
-            raise AssertionError(f"npm pack should not include Google design source or adapter: {file_path}")
+            raise AssertionError(f"npm pack should not include external design source or adapter: {file_path}")
 
 
 EVALS = [
@@ -1335,11 +1309,10 @@ EVALS = [
     ("evidence-prune-generated-artifacts", test_evidence_prune_generated_artifacts),
     ("eval-report-shape", test_eval_report_shape),
     ("preserve-unmanaged-docs", test_preserve_unmanaged_docs),
-    ("official-google-design-cli-documented", test_official_google_design_cli_documented),
-    ("readme-google-design-dependency-documented", test_readme_google_design_dependency_documented),
+    ("backend-init-skips-frontend-design-docs", test_backend_init_skips_frontend_design_docs),
     ("frontend-design-control-plane", test_frontend_design_control_plane),
-    ("plugin-does-not-bundle-google-design", test_plugin_does_not_bundle_google_design),
-    ("pack-excludes-google-source", test_pack_excludes_google_source),
+    ("no-external-design-dependency", test_no_external_design_dependency),
+    ("pack-excludes-external-design-dependency", test_pack_excludes_external_design_dependency),
 ]
 
 

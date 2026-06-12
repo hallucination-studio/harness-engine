@@ -12,7 +12,7 @@ Run the packaged script to inspect the target repository before editing files. U
 1. Run `python3 scripts/manage_harness.py analyze --repo <target-repo> --output <analysis.json>`.
 2. Read `analysis.json`.
 3. Ask the human only the unresolved, high-impact questions from `human_confirmations`.
-4. During initialization, create `docs/DESIGN.md`, `docs/FRONTEND.md`, and `docs/design-docs/style-options.md` as the target repository's design control plane. The target project owns `docs/DESIGN.md` and must create the real design system through an official Google DESIGN.md path: prompt in Stitch, brand URL/image import in Stitch, or hand-authored markdown/YAML. Harness-engine does not generate style, choose themes, extract branding, or vendor Google DESIGN.md source.
+4. During initialization, create frontend design docs only when the analysis detects a frontend surface. Frontend repos get `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/design-docs/`; backend-only repos do not. The generated `docs/DESIGN.md` is a project-owned visual specification shaped like DESIGN.md: YAML tokens plus markdown rationale. Do not call external design-generation skills or packages during init.
 5. Run `python3 scripts/manage_harness.py sample-answers --analysis <analysis.json> --output <answers.json>`.
 6. Fill the placeholders in `answers.json` from the repository and the human's confirmed answers.
 7. Run `python3 scripts/manage_harness.py init --repo <target-repo> --answers <answers.json>`. This is the single workspace entrypoint: it creates a new harness when none exists, and reconciles a managed or partial harness when managed harness files are already present. Reconcile refreshes managed files, backfills newly introduced managed files, and preserves unmanaged user files. Pass `--force` only with explicit user approval.
@@ -43,7 +43,7 @@ Run the packaged script to inspect the target repository before editing files. U
 - Read [references/template-policy.md](references/template-policy.md) before overwriting existing files.
 - Read [references/evaluation-loop.md](references/evaluation-loop.md) before changing the skill, templates, scripts, or policy references.
 - Read [references/evidence-first-evals.md](references/evidence-first-evals.md) before designing evals for product correctness, frontend validation, or bug-discovery coverage.
-- Read `docs/FRONTEND.md` and `docs/DESIGN.md` for frontend, UI, product design, visual design, canvas, or interface polish work. Use the target project's official `@google/design.md` CLI install to lint, diff, or export DESIGN.md-controlled files.
+- Read `docs/FRONTEND.md` and `docs/DESIGN.md` when they exist for frontend, UI, product design, visual design, canvas, or interface polish work.
 
 ## Command Rules
 
@@ -70,24 +70,11 @@ Run the packaged script to inspect the target repository before editing files. U
 - Run `python3 evals/run_evals.py` after skill changes, read the structured report, and treat per-case failures as iteration input.
 - Do not add CI to user repositories unless the human explicitly asks for it.
 
-## Google DESIGN.md Integration
+## Frontend Design Docs
 
-Harness-engine does not vendor Google DESIGN.md source, choose themes, extract branding, or ship a local Google adapter. Target repositories should create the real `docs/DESIGN.md` through one of Google's documented paths:
+Harness-engine has no external design runtime dependency and must not call an external design skill during init. It uses the local `/Users/murphy/code/github/design.md` checkout only as a reference for document shape.
 
-- Create from a prompt in Stitch.
-- Derive from branding in Stitch with a URL or image.
-- Write it by hand as markdown with optional YAML frontmatter.
-
-Use examples only as references: `https://github.com/google-labs-code/design.md/tree/main/examples`.
-
-After `docs/DESIGN.md` exists, target repositories should install the official package:
-
-```bash
-npm install --save-dev @google/design.md
-npx @google/design.md lint docs/DESIGN.md
-```
-
-Use `docs/FRONTEND.md` to control which project files read `docs/DESIGN.md`, which generated token exports are allowed, and how agents validate those files.
+For frontend repositories, `docs/FRONTEND.md` records product positioning, scope, stack notes, validation expectations, controlled files, and read order. `docs/DESIGN.md` records the unified visual specification with YAML tokens and markdown rationale. For backend-only repositories, these files are not generated.
 
 ## Output Rules
 

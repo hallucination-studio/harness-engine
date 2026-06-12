@@ -7,9 +7,9 @@ and the agent-facing harness workflow.
 
 - The npm package installs the bundled plugin shape without extra build output:
   `.codex-plugin/` and `skills/harness-engine/`.
-- Harness Engine does not vendor Google DESIGN.md source or ship a local Google adapter. Target
-  repositories install the official `@google/design.md` package when they need DESIGN.md lint,
-  diff, or token export behavior.
+- Harness Engine has no external design-generation dependency. It does not call external design
+  skills, install design packages, vendor external design source, or generate frontend/design docs
+  for backend-only repositories.
 - The deterministic manager commands protect the closed loop: analyze, scaffold, plan, knowledge capture, quality score, phase continuity, workstream recovery, plan close, and check.
 - A fresh target repository can install the skill locally and have Codex use it to create a harness before implementing real work.
 - The generated work is reviewed for requirement fit, code quality, maintainability, and whether the harness workflow actually shaped the implementation.
@@ -33,21 +33,17 @@ Passing criteria:
 - `smoke:install` installs the plugin bundle into a temporary skills directory and confirms:
   `skills/harness-engine/SKILL.md` and `.codex-plugin/plugin.json`.
 - `where` reports the installed plugin root, not only a single skill directory.
-- Generated `docs/DESIGN.md` tells target projects that Harness Engine does not create style and
-  that the real design system must come from an official Google DESIGN.md path: prompt in Stitch,
-  brand URL/image import in Stitch, or hand-authored markdown/YAML.
-- Generated `docs/DESIGN.md` tells target projects to install and use the official
-  `@google/design.md` CLI after the real design system exists, including `lint` and `export`
-  commands.
-- Generated `docs/FRONTEND.md` explicitly tells agents to read `docs/DESIGN.md`, invoke
-  the official `@google/design.md` CLI, and defines controlled token export, theme, style, and
-  component files.
-- Generated `docs/FRONTEND.md` blocks treating a `status: design-source-required` DESIGN.md as an
-  approved visual style.
+- Backend-only repositories do not receive `docs/FRONTEND.md`, `docs/DESIGN.md`, or
+  `docs/design-docs/`.
+- Frontend repositories receive `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/design-docs/`.
+- Generated `docs/DESIGN.md` follows the local `/Users/murphy/code/github/design.md` document
+  pattern: YAML design tokens plus markdown sections for Overview, Colors, Typography, Layout,
+  Elevation & Depth, Shapes, Components, and Do's and Don'ts.
+- Generated `docs/FRONTEND.md` explicitly records project positioning, frontend scope, stack notes,
+  validation expectations, controlled files, and read order.
 - `pack:check` includes `.codex-plugin/**`, `skills/harness-engine/**`, `agents`, `assets`,
-  `references`, `scripts`, and eval sources, but does not include Google DESIGN.md source,
-  `skills/google-design-style/`, `third_party/google-design-md/`, `__pycache__`, `.pyc`, local
-  `.codex`, or tarball artifacts.
+  `references`, `scripts`, and eval sources, but does not include external design source,
+  design adapter skills, `third_party/`, `__pycache__`, `.pyc`, local `.codex`, or tarball artifacts.
 - `git diff --check` reports no whitespace errors.
 
 ## Codex E2E Scenario
@@ -64,8 +60,8 @@ codex exec --cd "$TARGET_DIR" --skip-git-repo-check --dangerously-bypass-approva
 The prompt must require Codex to:
 
 - Use `$harness-engine`.
-- Use `docs/FRONTEND.md` and `docs/DESIGN.md` for frontend or visual-design style work, and install
-  `@google/design.md` in the target project when official DESIGN.md validation or export is needed.
+- Use `docs/FRONTEND.md` and `docs/DESIGN.md` for frontend or visual-design style work when those
+  docs exist.
 - Analyze the empty repository before creating docs.
 - Initialize or reconcile the harness with concrete project answers.
 - Start an execution plan before implementation.
@@ -81,9 +77,9 @@ The prompt must require Codex to:
 
 Passing criteria:
 
-- `AGENTS.md`, `ARCHITECTURE.md`, `docs/PLANS.md`, `docs/QUALITY_SCORE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md`, `docs/FRONTEND.md`, `docs/exec-plans/workstreams.md`, and `docs/sops/` exist.
-- `docs/DESIGN.md` is the shared design interface and follows the Google DESIGN.md-compatible
-  structure without copying the full upstream examples into the target repository.
+- `AGENTS.md`, `ARCHITECTURE.md`, `docs/PLANS.md`, `docs/QUALITY_SCORE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md`, `docs/exec-plans/workstreams.md`, and `docs/sops/` exist.
+- For frontend targets, `docs/FRONTEND.md` and `docs/DESIGN.md` exist and define the shared
+  frontend/design interface. For backend-only targets, they are absent.
 - `docs/exec-plans/active/` contains no task plan after completion.
 - `docs/exec-plans/completed/` contains the completed plan.
 - Completed plan has `Quality Gate` status `pass` with average score at least `8.0`.

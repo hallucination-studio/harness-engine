@@ -196,82 +196,154 @@ For each issue:
 """,
 }
 
-DOC_FILES = {
-    "docs/DESIGN.md": """{marker}
----
+FRONTEND_DOC_FILES = {
+    "docs/DESIGN.md": """---
 version: alpha
 name: {project_name} Design System
-description: Placeholder for the project-owned DESIGN.md. Create the real design system through an official Google DESIGN.md creation path before UI implementation.
-status: design-source-required
+description: Project-owned unified visual specification for frontend and interface work.
+frontend: true
+source: harness-engine-template
+colors:
+  primary: "#1A1C1E"
+  secondary: "#6C7278"
+  tertiary: "#B8422E"
+  neutral: "#F7F5F2"
+  surface: "#FFFFFF"
+  text: "#1A1C1E"
+  muted: "#6C7278"
+typography:
+  display:
+    fontFamily: Inter
+    fontSize: 48px
+    fontWeight: "700"
+    lineHeight: 1.1
+    letterSpacing: 0px
+  headline:
+    fontFamily: Inter
+    fontSize: 32px
+    fontWeight: "650"
+    lineHeight: 1.2
+    letterSpacing: 0px
+  body:
+    fontFamily: Inter
+    fontSize: 16px
+    fontWeight: "400"
+    lineHeight: 1.6
+    letterSpacing: 0px
+  label:
+    fontFamily: Inter
+    fontSize: 13px
+    fontWeight: "600"
+    lineHeight: 20px
+    letterSpacing: 0px
+rounded:
+  sm: 4px
+  md: 8px
+  lg: 12px
+spacing:
+  base: 8px
+  xs: 4px
+  sm: 12px
+  md: 24px
+  lg: 40px
+  xl: 64px
+components:
+  button-primary:
+    backgroundColor: "{{colors.tertiary}}"
+    textColor: "{{colors.surface}}"
+    typography: "{{typography.label}}"
+    rounded: "{{rounded.md}}"
+    padding: "{{spacing.sm}}"
+  card:
+    backgroundColor: "{{colors.surface}}"
+    textColor: "{{colors.text}}"
+    rounded: "{{rounded.md}}"
+    padding: "{{spacing.md}}"
+  input:
+    backgroundColor: "{{colors.surface}}"
+    textColor: "{{colors.text}}"
+    typography: "{{typography.body}}"
+    rounded: "{{rounded.sm}}"
+    padding: "{{spacing.sm}}"
 ---
 
-# Design
+# Design System: {project_name}
 
 ## Overview
 
-{frontend_stack_notes}
+{project_summary}
 
-Harness Engine does not generate visual style, choose themes, derive branding, or vendor Google DESIGN.md source. This file is a control point for the real project-owned DESIGN.md.
+Project positioning: {product_domain}
 
-Create the actual DESIGN.md through one of the official Google DESIGN.md paths:
+Primary users: {primary_users}
 
-1. Create from a prompt in Stitch: describe the intended vibe, product, audience, and interaction feel. Stitch generates the design system and summarizes it as DESIGN.md.
-2. Derive from branding in Stitch: provide a brand URL or image so Stitch can extract palette, typography, and style patterns into DESIGN.md.
-3. Write it by hand: advanced users can author markdown and optional YAML frontmatter directly.
+Frontend context: {frontend_stack_notes}
 
-Chosen path for this project:
-
-{design_creation_path}
-
-After the real design system is created, install and use the official package in this target project:
-
-```bash
-npm install --save-dev @google/design.md
-npx @google/design.md lint docs/DESIGN.md
-```
-
-Use upstream examples only as references, not as vendored source:
-
-```text
-https://github.com/google-labs-code/design.md/tree/main/examples
-```
+This document is the repository-owned visual system. It follows the DESIGN.md pattern of YAML tokens plus markdown rationale, using `/Users/murphy/code/github/design.md` only as a local reference for structure. Do not depend on external design-generation skills or packages during init.
 
 ## Colors
 
-Pending real DESIGN.md creation. Fill this from Stitch output, brand extraction, or hand-authored design decisions.
+Use the YAML tokens as the source of truth. Replace the starter palette with project-specific colors before major UI implementation.
+
+- **Primary:** Core text, navigation, and durable brand presence.
+- **Secondary:** Metadata, borders, captions, and lower-emphasis UI.
+- **Tertiary:** Primary actions and critical interactive emphasis.
+- **Neutral:** Page background and quiet surface contrast.
 
 ## Typography
 
-Pending real DESIGN.md creation. Record font families, hierarchy, body readability, label treatment, and any tabular or technical text rules.
+Use a restrained type hierarchy until the product has stronger brand requirements.
+
+- **Display:** Highest-level product or workflow moments only.
+- **Headline:** Section and panel titles.
+- **Body:** Main explanatory and task text.
+- **Label:** Buttons, field labels, metadata, and compact controls.
 
 ## Layout
 
-Pending real DESIGN.md creation. Record grid, spacing rhythm, density, content grouping, responsive behavior, and workflow ergonomics.
+Use an 8px spacing rhythm. Keep workflow surfaces dense enough for repeated use but leave enough separation for scanning, comparison, and error recovery. Document any fixed-format surfaces, responsive breakpoints, and primary task areas here before implementing them.
 
 ## Elevation & Depth
 
-Pending real DESIGN.md creation. Record how hierarchy is created through shadows, borders, tonal layers, transparency, or flat contrast.
+Prefer hierarchy through spacing, contrast, borders, and restrained shadows. Record when the product uses flat layers, cards, panels, translucent surfaces, or depth effects, and keep those choices consistent across components.
 
 ## Shapes
 
-Pending real DESIGN.md creation. Record shape language for buttons, cards, inputs, chips, modals, and fixed-format UI elements.
+Use the rounded token scale consistently. Buttons, inputs, cards, chips, modals, and fixed-format controls should share a coherent corner-radius language.
 
 ## Components
 
-Pending real DESIGN.md creation. Record treatment for buttons, form fields, navigation, cards or panels, tables or lists, badges, empty states, loading states, and error states.
+Define component treatment before scaling UI work:
+
+- **Buttons:** color role, icon placement, loading state, disabled state, and hover/focus behavior.
+- **Forms:** field shape, validation state, helper text, density, and keyboard ergonomics.
+- **Navigation:** selected state, hierarchy, collapsed behavior, and responsive fallback.
+- **Cards and panels:** surface color, border/elevation, padding, and information density.
+- **Tables and lists:** row height, selected state, sorting/filtering affordances, empty state, and overflow behavior.
+- **Feedback states:** loading, empty, error, success, warning, and permission-denied patterns.
 
 ## Do's and Don'ts
 
-- Do replace this placeholder with a real Google DESIGN.md generated by Stitch, derived from branding, or written by hand.
-- Do run `npx @google/design.md lint docs/DESIGN.md` after edits.
-- Do export tokens with `npx @google/design.md export docs/DESIGN.md --format <format>` when the frontend stack consumes generated token files.
+- Do update this file with project-specific visual decisions before large UI changes.
+- Do keep tokens and prose aligned: tokens provide exact values, prose explains when to use them.
+- Do cite this file in frontend plans and code-review notes when UI choices matter.
 - Do validate meaningful UI work in a real browser before closing it out.
-- Don't edit generated token exports by hand; update `docs/DESIGN.md` and regenerate them.
-- Don't treat this placeholder as an approved visual style.
-- Don't rely on harness-engine to generate, choose, or extract product taste.
+- Don't call external design skills or packages during harness init.
+- Don't create one-off component styles that contradict this file without updating it.
+- Don't leave generic palette or typography defaults in place for production-facing UI.
 """,
     "docs/FRONTEND.md": """{marker}
 # Frontend
+
+## Project Positioning
+
+Project: {project_name}
+
+Domain: {product_domain}
+
+Primary users: {primary_users}
+
+Product purpose: {project_summary}
 
 ## Scope
 
@@ -288,13 +360,11 @@ Pending real DESIGN.md creation. Record treatment for buttons, form fields, navi
 ## Design Style Contract
 
 - Read `docs/DESIGN.md` before implementing frontend, UI, layout, visual-state, canvas, or interaction work.
-- If `docs/DESIGN.md` has `status: design-source-required` or pending sections, do not treat it as an approved visual style. First create the real DESIGN.md through an official Google path: prompt in Stitch, brand URL/image import in Stitch, or hand-authored markdown/YAML.
-- The project owns `docs/DESIGN.md`; maintain and validate it with the official Google package: `npm install --save-dev @google/design.md`, then `npx @google/design.md lint docs/DESIGN.md`.
+- Treat `docs/DESIGN.md` as the project-owned unified visual specification. It is written and maintained in this repository.
 - Treat `docs/DESIGN.md` as the source of truth for UI tokens, colors, typography, spacing, radius, elevation, component treatment, and Do's and Don'ts.
-- Generated design-token files must be derived from `docs/DESIGN.md` with `npx @google/design.md export docs/DESIGN.md --format <format>`.
-- Files controlled by `docs/DESIGN.md` include design token exports under `docs/design-docs/` or `src/styles/`, Tailwind theme files, global CSS variables, component theme modules, Storybook/theme previews, and any UI implementation that consumes those tokens.
-- Agents must read in this order for UI work: `docs/FRONTEND.md`, `docs/DESIGN.md`, generated token exports, then the component or stylesheet being changed.
-- Do not hand-edit generated token exports. Update `docs/DESIGN.md`, regenerate exports with the official CLI, and cite the lint/export command in validation.
+- Files controlled by `docs/DESIGN.md` include token notes under `docs/design-docs/`, Tailwind theme files, global CSS variables, component theme modules, Storybook/theme previews, and any UI implementation that consumes those tokens or style rules.
+- Agents must read in this order for UI work: `docs/FRONTEND.md`, `docs/DESIGN.md`, then the component, theme, or stylesheet being changed.
+- Do not call external design-generation skills or package CLIs as part of harness init. If a project later adopts a generator, record that decision here first.
 
 ## Evidence For Meaningful UI Work
 
@@ -305,6 +375,41 @@ Pending real DESIGN.md creation. Record treatment for buttons, form fields, navi
 - For canvas, WebGL, or game UIs, add pixel or scene-state checks so a blank render cannot pass.
 - Record browser limitations and fallback checks instead of claiming full UX validation when browser evidence is unavailable.
 """,
+    "docs/design-docs/index.md": """{marker}
+# Design Docs Index
+
+- Add one document per durable design decision.
+- Link active design decisions from plans and specs.
+""",
+    "docs/design-docs/style-options.md": """{marker}
+# Design System Control
+
+The project owns `docs/DESIGN.md`. Harness Engine initializes the document from a local template inspired by `/Users/murphy/code/github/design.md` structure, then the project refines it with its own product and brand decisions.
+
+## Controlled Files
+
+- `docs/DESIGN.md`: source of truth for design tokens and design rationale.
+- `docs/design-docs/`: durable design decisions, option notes, and validation evidence.
+- `src/styles/`, `app/styles/`, or equivalent style directories: CSS variables, Tailwind themes, or framework-specific theme modules.
+- Component theme files, Storybook theme previews, and UI implementation files that consume shared tokens or style rules.
+
+## Operating Rules
+
+- Read `docs/FRONTEND.md` before editing controlled files.
+- Read `docs/DESIGN.md` before changing UI implementation.
+- Keep token values and prose rationale in sync.
+- Record major visual-system changes in this folder or in the active plan.
+""",
+    "docs/design-docs/core-beliefs.md": """{marker}
+# Core Beliefs
+
+- Keep the repository as the system of record.
+- Prefer explicit policies over implied team memory.
+- Prefer repeatable checks over remembered rules.
+""",
+}
+
+DOC_FILES = {
     "docs/PLANS.md": """{marker}
 # Plans
 
@@ -401,59 +506,6 @@ Pending real DESIGN.md creation. Record treatment for buttons, form fields, navi
 - Review auth, authorization, secrets, and sensitive data changes explicitly.
 - Prefer least privilege and traceable configuration.
 - Record security-sensitive assumptions in durable docs.
-""",
-    "docs/design-docs/index.md": """{marker}
-# Design Docs Index
-
-- Add one document per durable design decision.
-- Link active design decisions from plans and specs.
-""",
-    "docs/design-docs/style-options.md": """{marker}
-# Design System Control
-
-The project owns `docs/DESIGN.md`. Harness Engine does not generate style or choose themes.
-
-## Official Creation Paths
-
-Create the real DESIGN.md through one of the official Google DESIGN.md paths:
-
-1. **Create from a prompt in Stitch**: describe the intended vibe, product, audience, and interaction feel.
-2. **Derive from branding in Stitch**: provide a brand URL or image so Stitch can extract palette, typography, and style patterns.
-3. **Write it by hand**: author markdown and optional YAML frontmatter directly.
-
-Use upstream examples only as references:
-
-```text
-https://github.com/google-labs-code/design.md/tree/main/examples
-```
-
-After `docs/DESIGN.md` contains the real project design system, install and use the official Google DESIGN.md CLI in this target repository:
-
-```bash
-npm install --save-dev @google/design.md
-npx @google/design.md lint docs/DESIGN.md
-```
-
-## Controlled Files
-
-- `docs/DESIGN.md`: source of truth for design tokens and design rationale.
-- `docs/design-docs/`: design decisions, lint reports, token export notes, and generated design evidence.
-- `src/styles/`, `app/styles/`, or equivalent style directories: CSS variables, Tailwind theme exports, or framework-specific theme modules generated from `docs/DESIGN.md`.
-- Component theme files, Storybook theme previews, and UI implementation files that consume exported tokens.
-
-## Operating Rules
-
-- Read `docs/FRONTEND.md` before editing controlled files.
-- Read `docs/DESIGN.md` before changing UI implementation.
-- Do not hand-edit generated token exports; edit `docs/DESIGN.md` and rerun the official CLI export command.
-- Store lint/export outputs under `docs/generated/` or cite the command output in the active plan.
-""",
-    "docs/design-docs/core-beliefs.md": """{marker}
-# Core Beliefs
-
-- Keep the repository as the system of record.
-- Prefer explicit policies over implied team memory.
-- Prefer repeatable checks over remembered rules.
 """,
     "docs/exec-plans/tech-debt-tracker.md": """{marker}
 # Tech Debt Tracker
@@ -680,11 +732,6 @@ QUESTION_CATALOG = [
         "reason": "Needed for design and frontend policies.",
     },
     {
-        "id": "design_creation_path",
-        "prompt": "How should the project create its real DESIGN.md: Stitch prompt, Stitch brand URL/image import, or hand-authored markdown/YAML?",
-        "reason": "Needed because harness-engine does not generate visual style; the project must choose an official Google DESIGN.md creation path.",
-    },
-    {
         "id": "quality_focus",
         "prompt": "Which product areas or architectural layers deserve the strictest quality scoring?",
         "reason": "Needed for QUALITY_SCORE.md.",
@@ -807,7 +854,7 @@ def list_repo_files(repo):
 
 def detect_existing_managed_files(repo):
     managed = []
-    for relative_path in list(ROOT_FILES.keys()) + list(DOC_FILES.keys()):
+    for relative_path in list(ROOT_FILES.keys()) + list(DOC_FILES.keys()) + list(FRONTEND_DOC_FILES.keys()):
         path = repo / relative_path
         if path.exists():
             try:
@@ -850,7 +897,6 @@ def make_default_answers(analysis):
             if has_frontend
             else "No frontend detected. Replace this if the repo includes UI work."
         ),
-        "design_creation_path": "Choose one before UI implementation: create from a prompt in Stitch, derive from branding URL/image in Stitch, or write docs/DESIGN.md by hand.",
         "quality_focus": "List the product areas and architectural layers that deserve the strictest quality bar.",
         "frontend_scope": frontend_scope,
         "frontend_validation_loop": frontend_validation_loop,
@@ -962,7 +1008,9 @@ def git_add_paths(repo, paths):
 
 
 def is_managed_text(text):
-    return text.startswith(MANAGED_MARKER)
+    return text.startswith(MANAGED_MARKER) or (
+        text.startswith("---") and "\nsource: harness-engine-template\n" in text[:500]
+    )
 
 
 def is_obsolete_managed_text(text):
@@ -1827,6 +1875,8 @@ def write_scaffold(repo, analysis, answers, refresh_managed=False, force=False):
     all_templates = {}
     all_templates.update(ROOT_FILES)
     all_templates.update(DOC_FILES)
+    if analysis["has_frontend"]:
+        all_templates.update(FRONTEND_DOC_FILES)
 
     for relative_path, template in all_templates.items():
         target = repo / relative_path
@@ -2144,11 +2194,12 @@ def analyze_repo(repo):
     durable_knowledge_targets = [
         "ARCHITECTURE.md",
         "docs/product-specs/",
-        "docs/design-docs/",
         "docs/RELIABILITY.md",
         "docs/SECURITY.md",
         "docs/references/",
     ]
+    if has_frontend:
+        durable_knowledge_targets.insert(2, "docs/design-docs/")
 
     inferred_answers = {
         "project_name": repo.name,

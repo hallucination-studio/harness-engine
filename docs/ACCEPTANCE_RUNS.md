@@ -3,51 +3,50 @@
 This file records concrete acceptance runs for the packaged `harness-engine` skill.
 Keep reusable methodology in `docs/ACCEPTANCE_PLAN.md`; keep run-specific evidence here.
 
-## 2026-06-11 Official Google DESIGN.md Control Plane Acceptance
+## 2026-06-12 No External Design Dependency Acceptance
 
 ### Scenario
 
 - Source package: local checkout at `/Users/murphy/code/github/harness-engine`.
-- Change under acceptance: Harness Engine no longer vendors Google DESIGN.md source or ships a
-  local Google adapter. Target projects own `docs/DESIGN.md` and use the official
-  `@google/design.md` package for lint, diff, and export behavior.
+- Change under acceptance: Harness Engine does not depend on external design-generation skills,
+  does not install or call design packages, and does not generate frontend/design docs for backend-only
+  repositories. Frontend repositories receive local templates shaped by the DESIGN.md document
+  pattern from `/Users/murphy/code/github/design.md`.
 
 ### Package Gates
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| `npm test` | Pass | 17/17 evals passed, including `official-google-design-cli-documented`, `frontend-design-control-plane`, `plugin-does-not-bundle-google-design`, and `pack-excludes-google-source`. |
+| `npm test` | Pass | Evals passed, including `backend-init-skips-frontend-design-docs`, `frontend-design-control-plane`, `no-external-design-dependency`, and `pack-excludes-external-design-dependency`. |
 | `npm run smoke:install` | Pass | Installed plugin root `harness-engine-plugin` plus compatibility `harness-engine` skill into a temporary skills directory. |
-| `npm run pack:check` | Pass | Dry-run tarball included `.codex-plugin/plugin.json` and `skills/harness-engine/**`, and excluded `skills/google-design-style/` and `third_party/google-design-md/`. |
+| `npm run pack:check` | Pass | Dry-run tarball included `.codex-plugin/plugin.json` and `skills/harness-engine/**`, and excluded external design source or adapter skills. |
 | `git diff --check` | Pass | No whitespace errors. |
 
-### Google DESIGN.md Control Plane
+### Design Template Behavior
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| Official CLI documented | Pass | Generated `docs/DESIGN.md`, `docs/design-docs/style-options.md`, and `SKILL.md` document `npm install --save-dev @google/design.md` and `npx @google/design.md lint docs/DESIGN.md`. |
-| Official creation paths documented | Pass | Generated docs describe the three Google DESIGN.md creation paths: prompt in Stitch, brand URL/image import in Stitch, and hand-authored markdown/YAML. |
-| `FRONTEND.md` controls readers | Pass | Generated `docs/FRONTEND.md` tells agents to read `docs/FRONTEND.md`, then `docs/DESIGN.md`, then generated token exports, then the UI file being changed. |
-| Placeholder blocks UI style use | Pass | Generated `docs/FRONTEND.md` says a `status: design-source-required` DESIGN.md must not be treated as an approved visual style. |
-| Controlled files listed | Pass | `FRONTEND.md` names generated token exports, Tailwind theme files, global CSS variables, component theme modules, Storybook/theme previews, and UI files that consume tokens. |
-| Generated exports policy | Pass | `FRONTEND.md` says generated design-token files must come from `docs/DESIGN.md` via `npx @google/design.md export docs/DESIGN.md --format <format>` and must not be hand-edited. |
+| Backend-only init skips UI docs | Pass | Backend-shaped repos do not receive `docs/FRONTEND.md`, `docs/DESIGN.md`, or `docs/design-docs/`. |
+| Frontend init creates UI docs | Pass | Frontend-shaped repos receive `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/design-docs/`. |
+| `FRONTEND.md` controls readers | Pass | Generated `docs/FRONTEND.md` records project positioning, scope, stack notes, controlled files, and read order. |
+| `DESIGN.md` is local template | Pass | Generated `docs/DESIGN.md` includes YAML tokens and markdown sections for Overview, Colors, Typography, Layout, Elevation & Depth, Shapes, Components, and Do's and Don'ts. |
+| No external design dependency | Pass | README, SKILL.md, and generated templates do not instruct agents to call external design-generation skills or install design packages during init. |
 
 ### Findings
 
-- This design keeps Google behavior owned by Google's npm package instead of a harness-engine
-  submodule or local adapter.
-- Harness Engine's responsibility is the control plane: where `docs/DESIGN.md` lives, which files it
-  controls, how agents read those files, and which official CLI commands validate or export them.
-- Package checks now fail if Google source or a local `google-design-style` skill is included.
+- Harness Engine now treats frontend/design docs as conditional outputs, not universal harness files.
+- The design template is self-contained and project-owned. `/Users/murphy/code/github/design.md` is
+  only a reference for document structure.
+- Package checks still prevent external design source or local adapter skills from entering the
+  install artifact.
 
 ### Acceptance Decision
 
 Pass.
 
-The updated acceptance gates prove that Harness Engine does not depend on Google source code while
-still giving target repositories clear instructions for installing and using the official
-`@google/design.md` package and for routing frontend work through `docs/FRONTEND.md` and
-`docs/DESIGN.md`.
+The updated acceptance gates prove that Harness Engine does not depend on external design-generation
+tools during init, skips frontend/design docs for backend-only projects, and still creates a
+structured frontend design control plane when a frontend is present.
 
 ## 2026-06-11 Clean-Repo Codex E2E
 
