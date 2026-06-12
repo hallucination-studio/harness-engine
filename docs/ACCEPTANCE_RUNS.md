@@ -71,7 +71,7 @@ structured frontend design control plane when a frontend is present.
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| Skill used before implementation | Pass | Codex invoked analyze, sample answers, init, plan-start, quality-score, phase-set, workstream-upsert, plan-close, and check. |
+| Skill used before implementation | Pass | Codex invoked analyze, sample answers, init, plan-start, quality-score, continuation-set, plan-close, and check. |
 | Harness scaffold exists | Pass | `AGENTS.md`, `ARCHITECTURE.md`, policy docs, SOPs, references, workstreams, active/completed plan folders were created. |
 | Active plan closure | Pass | `docs/exec-plans/active/` retained only `README.md` and `_template.md`; task plan moved to `docs/exec-plans/completed/2026-06-11-snake-game.md`. |
 | Durable knowledge closure | Pass | Completed plan records three closed knowledge items with destinations/evidence. |

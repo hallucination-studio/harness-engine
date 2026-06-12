@@ -10,7 +10,7 @@ and the agent-facing harness workflow.
 - Harness Engine has no external design-generation dependency. It does not call external design
   skills, install design packages, vendor external design source, or generate frontend/design docs
   for backend-only repositories.
-- The deterministic manager commands protect the closed loop: analyze, scaffold, plan, knowledge capture, quality score, phase continuity, workstream recovery, plan close, and check.
+- The deterministic manager commands protect the closed loop: analyze, scaffold, plan, knowledge capture, quality score, continuation decision, workstream recovery, plan close, and check.
 - A fresh target repository can install the skill locally and have Codex use it to create a harness before implementing real work.
 - The generated work is reviewed for requirement fit, code quality, maintainability, and whether the harness workflow actually shaped the implementation.
 
@@ -75,7 +75,7 @@ The prompt must require Codex to:
 - Resolve logged bugs with `defect-resolve` and explicit passing evidence before scoring again.
 - Treat product requirements, frontend layout checks, and bug regressions as evidence-first eval cases, not only subjective score notes.
 - Run `quality-score`; if it fails, rework before closing.
-- Use `phase-set`, `workstream-upsert`, `plan-close`, and `check`.
+- Codex invokes `continuation-set`, `plan-close`, and `check`.
 - Report validation commands and artifact paths.
 
 Passing criteria:
@@ -90,7 +90,7 @@ Passing criteria:
 - Eval or validation results shown to the user include concrete failed cases, evidence gaps, artifact paths when available, and recommended next actions.
 - Completed plan has no open durable knowledge items.
 - `docs/exec-plans/workstreams.md` points at the completed plan path, not the old active path.
-- `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo .` passes.
+- The installed manager `check --repo .` command passes when Codex runs it.
 - The target app validates with its own commands, including backend tests and frontend syntax checks.
 - If a browser is available, the UI is opened and key user-visible states are verified. If browser automation is blocked, the limitation is recorded and API/static smoke checks must still pass.
 

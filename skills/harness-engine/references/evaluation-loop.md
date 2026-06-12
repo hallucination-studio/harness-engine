@@ -16,7 +16,7 @@ Use this loop when changing the skill, templates, scripts, or policy references:
 - frontend-aware repository analysis
 - execution-plan sidecars, acceptance contracts, and knowledge-capture closure
 - quality results that block closure and force rework when scores fail or become stale
-- phase continuity and workstream recovery for resumable work
+- continuation decisions and workstream recovery for resumable work
 - structured eval report output with per-case findings and recommended actions
 - preservation of unmanaged user-owned docs
 - local harness checks that do not require user-project CI

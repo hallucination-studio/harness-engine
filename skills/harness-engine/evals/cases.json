@@ -24,8 +24,8 @@
     "description": "Execution plans should refuse to close until durable knowledge is written back."
   },
   {
-    "id": "phase-continuity-workstream",
-    "description": "Phased plans should record continuation and keep workstream references recoverable."
+    "id": "continuation-decision-workstream",
+    "description": "Plans should record closure decisions, validate required continuation fields, and keep resumable workstream references recoverable."
   },
   {
     "id": "plan-path-canonicalization",

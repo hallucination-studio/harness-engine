@@ -5,9 +5,11 @@ description: Initialize, refresh, and operate an advanced harness-engineering re
 
 # Harness Engine
 
-Run the packaged script to inspect the target repository before editing files. Use the generated analysis to decide what to ask the human, what durable knowledge is missing from the repo, and which execution-plan and SOP files must be created or reconciled.
+Use the packaged script yourself to inspect the target repository before editing files. Do not ask the user to run the harness Python commands during normal work. Use the generated analysis to decide what to ask the human, what durable knowledge is missing from the repo, and which execution-plan and SOP files must be created or reconciled.
 
 In a harness-managed repository, default every repository-mutating request into the harness lifecycle. Repository-mutating work includes code, docs, configuration, tests, dependencies, build/release scripts, generated templates, runtime behavior, migrations, cleanup, and fixes from review or user feedback. The only no-plan exceptions are pure question answering, read-only investigation, showing command output, and status reporting with no file changes. If an investigation turns into editing files, enter the lifecycle before editing.
+
+The user-facing interface is intent, not CLI. If the user says a task is complete, should continue, should pause, should stop, or should become follow-up debt, translate that into the appropriate manager command yourself and report the outcome. Only show raw commands when the user explicitly asks for implementation details or debugging help.
 
 ## Workflow
 
@@ -27,7 +29,7 @@ In a harness-managed repository, default every repository-mutating request into 
 14. Fix logged defects, then run `python3 scripts/manage_harness.py defect-resolve --repo <target-repo> --plan <plan-file> --id <bug-id> --fix-evidence "<passing check or code evidence>"`.
 15. Score the finished work with `python3 scripts/manage_harness.py quality-score --repo <target-repo> --plan <plan-file> --product-correctness <0-10> --product-note "<evidence>" --ux-operator-clarity <0-10> --ux-note "<evidence>" --architecture-maintainability <0-10> --architecture-note "<evidence>" --reliability-observability <0-10> --reliability-note "<evidence>" --security-data-handling <0-10> --security-note "<evidence>"`. Every dimension needs an evidence note tied to the ready Acceptance Contract.
 16. If `quality-score` fails, treat `## Rework Required` in the plan as the next implementation input, fix the work, then run `quality-score` again.
-17. For phased or resumable work, run `python3 scripts/manage_harness.py phase-set --repo <target-repo> --plan <plan-file> --mode <multi-phase|paused|completed|stopped> --workstream <id> --current-phase <n> --continuation <target> --next-action "<next action>"`, then update `workstreams.md` with `workstream-upsert`.
+17. Before closing, run `python3 scripts/manage_harness.py continuation-set --repo <target-repo> --plan <plan-file> --decision <complete|continue|pause|stop|defer>`. Use `--workstream`, `--next-target`, `--next-action`, `--closure-reason`, `--resume-notes`, and `--goal` as needed; `continue` and `pause` update `workstreams.md` automatically only after required fields validate.
 18. Before closing, replace generic plan placeholders with task-specific scope, constraints, steps, validation, and completion notes; leave no open durable-knowledge placeholder except the default unused line.
 19. Close the plan with `python3 scripts/manage_harness.py plan-close --repo <target-repo> --plan <plan-file> --summary "<summary>"`.
 20. Before handoff, run `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo <target-repo>` from an installed target repository.
@@ -65,7 +67,7 @@ In a harness-managed repository, default every repository-mutating request into 
 - Use `defect-log` for every bug found by tests, evals, browser validation, or code review; unresolved defects must block handoff.
 - Use `defect-resolve` only after the implementation is fixed and you can cite passing validation or code evidence.
 - Use `acceptance-set` before implementation and `quality-score` before `plan-close`; include `--product-note`, `--ux-note`, `--architecture-note`, `--reliability-note`, and `--security-note`; failed or stale scores must drive rework, not handoff.
-- Use `phase-set` and `workstream-upsert` before `plan-close` for Phase 1/2/3 or any other resumable multi-plan work.
+- Use `continuation-set` before every `plan-close`; choose `complete` for one-off plans, and use `continue` or `pause` for resumable multi-plan work. Invalid continuation input must fail before writing a half-valid workstream.
 - Use `plan-close` as the final guardrail so plan state, quality score, and durable docs stay synchronized. When blocked, it returns JSON with `status`, `reason`, `message`, and `details`; use that output as the next repair input.
 - Use `check` as the local handoff guardrail for user repositories. Active plans require ready Acceptance Contracts; completed plans require passing Quality Results scored against the current contract fingerprint.
 - Use `evidence-prune` as a cleanup preview for old unreferenced files under `docs/generated/`; it never deletes unless `--apply` is present.

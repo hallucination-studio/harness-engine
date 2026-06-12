@@ -35,6 +35,8 @@ After the script runs, read the generated docs once and tighten weak generic phr
 
 After the scaffold exists:
 
+- treat harness commands as Codex's execution interface, not as steps the user must manually run
+- translate user intent like "complete this", "continue this later", "pause until X", "stop this", or "defer this" into the matching continuation decision yourself
 - read `docs/exec-plans/workstreams.md` before resuming interrupted or long-running work
 - create or reuse an execution plan before any repository-mutating work, including code, docs, configuration, tests, dependencies, build/release scripts, generated templates, runtime behavior, migrations, cleanup, or review fixes
 - use `plan-start` instead of creating plan files manually when possible
@@ -48,11 +50,12 @@ After the scaffold exists:
 - resolve logged defects only after fixing the implementation and citing passing validation with `defect-resolve`
 - run `quality-score` after implementation and validation, with evidence notes for every dimension tied to the ready Acceptance Contract
 - if `quality-score` fails, implement the `## Rework Required` items and score again
-- use `phase-set` and `workstream-upsert` when a plan belongs to phased or resumable work
+- use `continuation-set` before every `plan-close`; `continue` and `pause` update the workstream ledger automatically after required fields validate
+- do not ask the user to invoke `continuation-set`, `plan-close`, or `check`; run them and summarize blocked reasons or successful state changes
 - use `clean` when local skill installs or generated evidence need cleanup or were already committed; review dry-run output first, then apply, commit, and push the staged removals
 - use `plan-close` to verify no durable knowledge is left stranded in the active plan
 - before `plan-close`, replace generic plan placeholders with task-specific scope, constraints, steps, validation, and completion notes; delete unused ad hoc durable-knowledge TODOs
-- run `.codex/skills/harness-engine/scripts/manage_harness.py check --repo <target-repo>` before handoff; active plans require ready Acceptance Contracts, while completed plans require passing Quality Results
+- run the installed manager `check` command before handoff; active plans require ready Acceptance Contracts, while completed plans require passing Quality Results
 - preview stale generated evidence with `evidence-prune` when `docs/generated/` contains old screenshots, DOM dumps, layout summaries, or smoke outputs; review the dry-run output before using `--apply`
 - do not add CI to the target repository unless the human explicitly asks for it
 

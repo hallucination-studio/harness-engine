@@ -99,15 +99,13 @@ Run `quality-score` after implementation and validation. Scores must cite eviden
 
 - Acceptance Contract is not ready.
 
-## Phase Continuity
+## Continuation Decision
 
-Mode: single-phase
+Decision: pending
 Workstream: none
-Current phase: none
-Next phase: none
-Continuation: none
+Next target: none
 Next action: none
-Closure reason: This plan is not part of a longer workstream.
+Closure reason: none
 Resume notes: none
 
 ## Durable Knowledge To Capture
@@ -139,7 +137,7 @@ Read this file first, then follow the linked docs.
 
 ## Harness Task Intake
 
-Default rule: any request that changes repository files or behavior goes through the harness lifecycle. This includes code, docs, configuration, tests, dependencies, generated templates, build/release scripts, runtime behavior, migrations, cleanup, and fixes found during review. Start or reuse an execution plan, set acceptance before implementation, validate with evidence, run `quality-score`, close the plan, then run `check`.
+Default rule: any request that changes repository files or behavior goes through the harness lifecycle. This includes code, docs, configuration, tests, dependencies, generated templates, build/release scripts, runtime behavior, migrations, cleanup, and fixes found during review. Codex starts or reuses an execution plan, sets acceptance before implementation, validates with evidence, runs `quality-score`, closes the plan, then runs `check`.
 
 No-plan exceptions are narrow: pure question answering, read-only investigation, showing command output, or status reporting with no file changes. If the work moves from investigation to editing files, create or reuse an active plan before editing.
 
@@ -162,13 +160,13 @@ No-plan exceptions are narrow: pure question answering, read-only investigation,
 For every repository change:
 
 - Inspect the relevant code path, runtime path, and user/operator workflow before editing.
-- Create or reuse an active plan with `plan-start`; keep plan scope lightweight for small changes, but do not skip the lifecycle.
-- Define a ready Acceptance Contract with `acceptance-set` before implementation.
+- Codex creates or reuses an active plan with `plan-start`; keep plan scope lightweight for small changes, but do not skip the lifecycle.
+- Codex defines a ready Acceptance Contract with `acceptance-set` before implementation.
 - Convert requirements, risks, or reported failures into assertions, tests, smoke checks, or review evidence.
 - Log confirmed defects or missing evidence with `defect-log`; unresolved defects must block `plan-close`, and scoring must be rerun after defects are resolved.
-- Run task-appropriate validation, then score with `quality-score` using concrete evidence notes for every dimension.
-- Close with `plan-close` only after validation, passing quality, resolved defects, and durable knowledge updates are complete.
-- Run `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo .` before handoff.
+- Run task-appropriate validation, then have Codex score with `quality-score` using concrete evidence notes for every dimension.
+- Codex closes with `plan-close` only after validation, passing quality, resolved defects, and durable knowledge updates are complete.
+- Codex runs the local harness check before handoff.
 
 ## Issue Workflows
 
@@ -198,10 +196,10 @@ fix, and validate with evidence before judging the result. Issue handling is one
 - Keep active plans in `docs/exec-plans/active/` and completed plans in `docs/exec-plans/completed/`; both the Markdown plans and JSON sidecars are version-controlled project state.
 - Keep resumable feature, refactor, reliability, security, frontend, and cleanup work in `docs/exec-plans/workstreams.md`.
 - Update plans during the work, not only at the end.
-- Define acceptance criteria with `acceptance-set` before implementation, then score completed work with `quality-score` before closing an execution plan.
+- Codex defines acceptance criteria with `acceptance-set` before implementation, then scores completed work with `quality-score` before closing an execution plan.
 - If `quality-score` fails, treat `## Rework Required` as the next implementation input and do not close the plan.
 - Encode durable facts learned during execution into permanent docs before closing the task.
-- Before handoff, run the local harness check: `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo .`. Active plans must have ready Acceptance Contracts; completed plans must have passing Quality Results scored against the current contract.
+- Before handoff, Codex runs the local harness check. Active plans must have ready Acceptance Contracts; completed plans must have passing Quality Results scored against the current contract.
 - Keep generated evidence and transient artifacts in `docs/generated/`; it is ignored by default unless intentionally promoted into tracked docs.
 - Keep local skill installs in `.codex/skills/`; they are ignored by default.
 - Keep external references in `docs/references/`.
@@ -579,7 +577,7 @@ DOC_FILES = {
 - Update plans during the work, not after the fact.
 - Link to specs, decisions, and validation artifacts when they exist.
 - Include a section for durable knowledge that must be written back into permanent docs.
-- Include phase continuity when a plan is part of a multi-phase feature, refactor, reliability, or cleanup effort.
+- Record a continuation decision before closing every plan. Use workstreams only for resumable continue or pause decisions.
 - Do not treat plans as the final home for product, architecture, or policy knowledge.
 
 ## No-Plan Exceptions
@@ -672,7 +670,7 @@ Record follow-up work that should survive beyond a single execution plan.
     "docs/exec-plans/workstreams.md": """{marker}
 # Workstreams
 
-Use this ledger to recover interrupted feature, refactor, reliability, security, frontend, and cleanup work.
+Use this ledger only for resumable work that spans plans or is intentionally paused.
 
 ## Index
 
@@ -682,6 +680,7 @@ Use this ledger to recover interrupted feature, refactor, reliability, security,
 ## Operating Rules
 
 - Add a workstream when work spans multiple execution plans or may be resumed by another agent.
+- Do not add one-off completed plans here unless their continuation decision is `continue` or `pause`.
 - Keep `Current Plan` pointed at the active plan when one exists.
 - Keep `Last Completed Plan` pointed at the latest completed plan after `plan-close`.
 - Keep `Next Action` concrete enough that another agent can resume without chat history.
@@ -707,7 +706,7 @@ Minimum contents:
 - quality result
 - defects to resolve
 - rework required
-- phase continuity
+- continuation decision
 - durable knowledge to capture
 
 Use a lightweight plan for small changes, but still set a ready Acceptance Contract, record a Quality Result, close the plan, and run the local harness check.
@@ -765,15 +764,13 @@ Run `quality-score` after implementation and validation. Scores must cite eviden
 
 - Acceptance Contract is not ready.
 
-## Phase Continuity
+## Continuation Decision
 
-Mode: single-phase
+Decision: pending
 Workstream: none
-Current phase: none
-Next phase: none
-Continuation: none
+Next target: none
 Next action: none
-Closure reason: This plan is not part of a longer workstream.
+Closure reason: none
 Resume notes: none
 
 ## Durable Knowledge To Capture
@@ -791,7 +788,7 @@ Move finished plans here after:
 
 1. validation is complete
 2. the Acceptance Contract is ready and the Quality Result has passed
-3. phase continuity has been recorded for multi-phase work
+3. a continuation decision has been recorded
 4. permanent docs have been updated
 5. any remaining follow-ups are recorded in workstreams, tech debt, or new plans
 """,
@@ -1715,42 +1712,63 @@ def default_workstream_id_from_plan(plan_path, text):
     return slugify(source or "workstream")
 
 
-def phase_continuity_for_plan(plan_path, text):
-    values = section_key_values(text, "Phase Continuity")
+def map_legacy_phase_mode(mode):
+    legacy = (mode or "").strip().lower()
+    if legacy in {"single-phase", "single", "none", "completed"}:
+        return "complete"
+    if legacy in {"multi-phase", "phased"}:
+        return "continue"
+    if legacy == "paused":
+        return "pause"
+    if legacy == "stopped":
+        return "stop"
+    return legacy
+
+
+def continuation_decision_for_plan(plan_path, text):
+    values = section_key_values(text, "Continuation Decision")
+    source = "continuation"
+    if values is None:
+        values = section_key_values(text, "Phase Continuity")
+        source = "phase"
     detected_phase = phase_number_from_text(plan_path.stem) or phase_number_from_text(plan_title(text))
     if values is None:
         return {
             "status": "missing",
+            "source": None,
             "detected_phase": detected_phase,
-            "mode": None,
+            "decision": None,
             "workstream": None,
-            "current_phase": None,
-            "next_phase": None,
-            "continuation": None,
+            "next_target": None,
             "next_action": None,
             "closure_reason": None,
             "resume_notes": None,
         }
-    mode = values.get("mode", "").lower()
+    if source == "phase":
+        decision = map_legacy_phase_mode(values.get("mode", ""))
+        next_target = values.get("continuation")
+    else:
+        decision = values.get("decision", "").lower()
+        next_target = values.get("next_target") or values.get("continuation")
     workstream = values.get("workstream")
-    current_phase = values.get("current_phase")
-    next_phase = values.get("next_phase")
-    continuation = values.get("continuation")
     next_action = values.get("next_action")
     closure_reason = values.get("closure_reason")
     resume_notes = values.get("resume_notes")
     return {
         "status": "present",
+        "source": source,
         "detected_phase": detected_phase,
-        "mode": mode,
+        "decision": decision,
         "workstream": workstream,
-        "current_phase": current_phase,
-        "next_phase": next_phase,
-        "continuation": continuation,
+        "next_target": next_target,
         "next_action": next_action,
         "closure_reason": closure_reason,
         "resume_notes": resume_notes,
     }
+
+
+def phase_continuity_for_plan(plan_path, text):
+    return continuation_decision_for_plan(plan_path, text)
 
 
 def is_empty_continuity_value(value):
@@ -1759,96 +1777,166 @@ def is_empty_continuity_value(value):
     return value.strip().lower() in {"", "none", "pending", "unknown", "n/a", "-"}
 
 
-def phase_continuity_issues(repo, plan_path, plan_text):
-    continuity = phase_continuity_for_plan(plan_path, plan_text)
-    detected_phase = continuity["detected_phase"]
+def target_exists_for_continuation(repo, next_target, workstream):
+    target = next_target.split("#", 1)[0].strip()
+    if target in {"", "none"}:
+        return False
+    if "workstreams.md" in target:
+        ledger = workstreams_path(repo)
+        return ledger.exists() and not is_empty_continuity_value(workstream) and workstream in ledger.read_text()
+    return (repo / target).exists()
+
+
+def deferred_target_exists(repo, next_target):
+    target = next_target.split("#", 1)[0].strip()
+    if target in {"", "none"}:
+        return False
+    if "tech-debt-tracker.md" in target:
+        return (repo / "docs" / "exec-plans" / "tech-debt-tracker.md").exists()
+    return (repo / target).exists()
+
+
+def continuation_decision_issues(repo, plan_path, plan_text):
+    continuity = continuation_decision_for_plan(plan_path, plan_text)
     if continuity["status"] == "missing":
-        if detected_phase:
-            return [
-                {
-                    "severity": "error",
-                    "code": "missing-phase-continuity",
-                    "path": str(plan_path.relative_to(repo)),
-                    "message": "Phased plan is missing a Phase Continuity section.",
-                }
-            ]
-        return []
-    mode = continuity["mode"]
-    if mode in {"single-phase", "single", "none"} and not detected_phase:
-        return []
+        return [
+            {
+                "severity": "error",
+                "code": "missing-continuation-decision",
+                "path": str(plan_path.relative_to(repo)),
+                "message": "Plan is missing a Continuation Decision section.",
+            }
+        ]
     issues = []
     relative_plan = str(plan_path.relative_to(repo))
-    if mode not in {"multi-phase", "phased", "paused", "completed", "stopped"} and detected_phase:
+    decision = continuity["decision"]
+    if is_empty_continuity_value(decision):
         issues.append(
             {
                 "severity": "error",
-                "code": "phase-mode-not-declared",
+                "code": "continuation-decision-pending",
                 "path": relative_plan,
-                "message": "Plan name indicates a phase, but Phase Continuity does not declare multi-phase, paused, completed, or stopped mode.",
+                "message": "Continuation Decision must be set before plan closure.",
             }
         )
-    if is_empty_continuity_value(continuity["workstream"]):
+        return issues
+    if decision not in {"complete", "continue", "pause", "stop", "defer"}:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "invalid-continuation-decision",
+                "path": relative_plan,
+                "message": "Continuation Decision must be one of complete, continue, pause, stop, or defer.",
+            }
+        )
+        return issues
+    workstream = continuity["workstream"]
+    next_target = continuity["next_target"]
+    next_action = continuity["next_action"]
+    closure_reason = continuity["closure_reason"]
+    resume_notes = continuity["resume_notes"]
+    if decision == "complete":
+        return issues
+    if decision in {"continue", "pause"} and is_empty_continuity_value(workstream):
         issues.append(
             {
                 "severity": "error",
                 "code": "missing-workstream",
                 "path": relative_plan,
-                "message": "Phased or multi-plan work must name a workstream in Phase Continuity.",
+                "message": "Continue or pause decisions must name a resumable workstream.",
             }
         )
-    if is_empty_continuity_value(continuity["current_phase"]):
-        issues.append(
-            {
-                "severity": "error",
-                "code": "missing-current-phase",
-                "path": relative_plan,
-                "message": "Phased or multi-plan work must record the current phase.",
-            }
-        )
-    continuation = continuity["continuation"]
-    closure_reason = continuity["closure_reason"]
-    next_action = continuity["next_action"]
-    if mode in {"completed", "stopped"}:
-        if is_empty_continuity_value(closure_reason):
-            issues.append(
-                {
-                    "severity": "error",
-                    "code": "missing-phase-closure-reason",
-                    "path": relative_plan,
-                    "message": "Completed or stopped workstreams must explain why no next phase is needed.",
-                }
-            )
-        return issues
-    if is_empty_continuity_value(continuation):
-        issues.append(
-            {
-                "severity": "error",
-                "code": "missing-continuation",
-                "path": relative_plan,
-                "message": "Multi-phase work must point to a next active plan, workstreams ledger, tech debt item, or explicit closure.",
-            }
-        )
-    elif "workstreams.md" in continuation and not is_empty_continuity_value(continuity["workstream"]):
-        ledger = workstreams_path(repo)
-        if not ledger.exists() or continuity["workstream"] not in ledger.read_text():
-            issues.append(
-                {
-                    "severity": "error",
-                    "code": "missing-workstream-ledger-entry",
-                    "path": relative_plan,
-                    "message": "Phase Continuity points to workstreams.md, but the named workstream is not recorded there.",
-                }
-            )
-    if is_empty_continuity_value(next_action):
+    if decision in {"continue", "pause"} and is_empty_continuity_value(next_action):
         issues.append(
             {
                 "severity": "error",
                 "code": "missing-next-action",
                 "path": relative_plan,
-                "message": "Multi-phase work must record a concrete next action for recovery.",
+                "message": "Continue or pause decisions must record a concrete next action for recovery.",
             }
         )
+    if decision == "continue":
+        if is_empty_continuity_value(next_target):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-next-target",
+                    "path": relative_plan,
+                    "message": "Continue decisions must point to a next plan or workstream target.",
+                }
+            )
+        elif not target_exists_for_continuation(repo, next_target, workstream):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-continuation-target",
+                    "path": relative_plan,
+                    "message": "Continue decision points to a missing plan or missing workstream entry.",
+                }
+            )
+    if decision == "pause":
+        if is_empty_continuity_value(closure_reason):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-resume-condition",
+                    "path": relative_plan,
+                    "message": "Pause decisions must record the condition for resuming.",
+                }
+            )
+        if is_empty_continuity_value(resume_notes):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-resume-notes",
+                    "path": relative_plan,
+                    "message": "Pause decisions must include resume notes.",
+                }
+            )
+    if decision == "stop" and is_empty_continuity_value(closure_reason):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "missing-closure-reason",
+                "path": relative_plan,
+                "message": "Stop decisions must explain why the work is ending.",
+            }
+        )
+    if decision == "defer":
+        if is_empty_continuity_value(next_target):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-deferred-target",
+                    "path": relative_plan,
+                    "message": "Defer decisions must record a tech-debt or follow-up target.",
+                }
+            )
+        elif not deferred_target_exists(repo, next_target):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-deferred-target",
+                    "path": relative_plan,
+                    "message": "Defer decision points to a missing tech-debt or follow-up target.",
+                }
+            )
+    if decision in {"continue", "pause"} and not is_empty_continuity_value(workstream):
+        ledger = workstreams_path(repo)
+        if not ledger.exists() or workstream not in ledger.read_text():
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-workstream-ledger-entry",
+                    "path": relative_plan,
+                    "message": "Continue or pause decision names a workstream that is not recorded in workstreams.md.",
+                }
+            )
     return issues
+
+
+def phase_continuity_issues(repo, plan_path, plan_text):
+    return continuation_decision_issues(repo, plan_path, plan_text)
 
 
 def open_defects_for_plan(text):
@@ -2019,14 +2107,12 @@ def assert_quality_gate_passed(plan_path, plan_text):
     return quality
 
 
-def render_phase_continuity(mode, workstream, current_phase, next_phase, continuation, next_action, closure_reason, resume_notes):
+def render_continuation_decision(decision, workstream, next_target, next_action, closure_reason, resume_notes):
     return "\n".join(
         [
-            f"Mode: {mode}",
+            f"Decision: {decision}",
             f"Workstream: {workstream}",
-            f"Current phase: {current_phase}",
-            f"Next phase: {next_phase}",
-            f"Continuation: {continuation}",
+            f"Next target: {next_target}",
             f"Next action: {next_action}",
             f"Closure reason: {closure_reason}",
             f"Resume notes: {resume_notes}",
@@ -2034,31 +2120,155 @@ def render_phase_continuity(mode, workstream, current_phase, next_phase, continu
     )
 
 
-def update_phase_continuity(plan_path, mode, workstream, current_phase, next_phase, continuation, next_action, closure_reason, resume_notes):
+def plan_goal_for_workstream(plan_path, explicit_goal=None):
+    if explicit_goal and not is_empty_continuity_value(explicit_goal):
+        return explicit_goal
     text = plan_path.read_text()
-    detected_phase = phase_number_from_text(plan_path.stem) or phase_number_from_text(plan_title(text)) or "none"
-    resolved_workstream = workstream or default_workstream_id_from_plan(plan_path, text)
-    resolved_current_phase = current_phase or detected_phase
-    body = render_phase_continuity(
-        mode,
+    lines = text.splitlines()
+    section_index = find_section(lines, "## Goal")
+    if section_index is not None:
+        goal_lines = []
+        for line in lines[section_index + 1 :]:
+            if line.startswith("## "):
+                break
+            stripped = line.strip()
+            if stripped:
+                goal_lines.append(stripped)
+        if goal_lines:
+            return " ".join(goal_lines)
+    title = plan_title(text)
+    return title or plan_path.stem
+
+
+def continuation_command_issues(repo, relative_plan, decision, workstream, next_target, next_action, closure_reason, resume_notes):
+    issues = []
+    decision = (decision or "").lower()
+    if decision not in {"complete", "continue", "pause", "stop", "defer"}:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "invalid-continuation-decision",
+                "path": relative_plan,
+                "message": "Continuation Decision must be one of complete, continue, pause, stop, or defer.",
+            }
+        )
+        return issues
+    if decision in {"continue", "pause"} and is_empty_continuity_value(workstream):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "missing-workstream",
+                "path": relative_plan,
+                "message": "Continue or pause decisions must name a resumable workstream.",
+            }
+        )
+    if decision in {"continue", "pause"} and is_empty_continuity_value(next_action):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "missing-next-action",
+                "path": relative_plan,
+                "message": "Continue or pause decisions must record a concrete next action for recovery.",
+            }
+        )
+    if decision == "continue" and is_empty_continuity_value(next_target):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "missing-next-target",
+                "path": relative_plan,
+                "message": "Continue decisions must point to a next plan or workstream target.",
+            }
+        )
+    if decision == "pause":
+        if is_empty_continuity_value(closure_reason):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-resume-condition",
+                    "path": relative_plan,
+                    "message": "Pause decisions must record the condition for resuming.",
+                }
+            )
+        if is_empty_continuity_value(resume_notes):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-resume-notes",
+                    "path": relative_plan,
+                    "message": "Pause decisions must include resume notes.",
+                }
+            )
+    if decision == "stop" and is_empty_continuity_value(closure_reason):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "missing-closure-reason",
+                "path": relative_plan,
+                "message": "Stop decisions must explain why the work is ending.",
+            }
+        )
+    if decision == "defer":
+        if is_empty_continuity_value(next_target):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-deferred-target",
+                    "path": relative_plan,
+                    "message": "Defer decisions must record a tech-debt or follow-up target.",
+                }
+            )
+        elif not deferred_target_exists(repo, next_target):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing-deferred-target",
+                    "path": relative_plan,
+                    "message": "Defer decision points to a missing tech-debt or follow-up target.",
+                }
+            )
+    return issues
+
+
+def update_continuation_decision(plan_path, decision, workstream, next_target, next_action, closure_reason, resume_notes):
+    text = plan_path.read_text()
+    decision = decision.lower()
+    resolved_workstream = workstream or (
+        default_workstream_id_from_plan(plan_path, text) if decision in {"continue", "pause"} else "none"
+    )
+    body = render_continuation_decision(
+        decision,
         resolved_workstream,
-        resolved_current_phase,
-        next_phase,
+        next_target,
+        next_action,
+        closure_reason,
+        resume_notes,
+    )
+    if find_section(text.splitlines(), "## Continuation Decision") is None and find_section(text.splitlines(), "## Phase Continuity") is not None:
+        updated = replace_section(text, "Phase Continuity", body)
+        updated = updated.replace("## Phase Continuity", "## Continuation Decision", 1)
+    else:
+        updated = replace_section(text, "Continuation Decision", body)
+    plan_path.write_text(updated)
+    return {
+        "status": "updated",
+        "decision": decision,
+        "workstream": resolved_workstream,
+        "next_target": next_target,
+        "next_action": next_action,
+    }
+
+
+def update_phase_continuity(plan_path, mode, workstream, current_phase, next_phase, continuation, next_action, closure_reason, resume_notes):
+    return update_continuation_decision(
+        plan_path,
+        map_legacy_phase_mode(mode),
+        workstream,
         continuation,
         next_action,
         closure_reason,
         resume_notes,
     )
-    plan_path.write_text(replace_section(text, "Phase Continuity", body))
-    return {
-        "status": "updated",
-        "mode": mode,
-        "workstream": resolved_workstream,
-        "current_phase": resolved_current_phase,
-        "next_phase": next_phase,
-        "continuation": continuation,
-        "next_action": next_action,
-    }
 
 
 def workstreams_path(repo):
@@ -2163,14 +2373,14 @@ def update_workstreams_after_plan_close(repo, active_relative_plan, completed_re
 
 
 def assert_phase_continuity_closed(repo, plan_path, plan_text):
-    issues = phase_continuity_issues(repo, plan_path, plan_text)
+    issues = continuation_decision_issues(repo, plan_path, plan_text)
     if issues:
         messages = "\n".join(f"- {issue['code']}: {issue['message']}" for issue in issues)
         raise PlanCloseError(
-            "phase-continuity-incomplete",
-            "Cannot close plan until phase continuity is recorded:\n"
+            "continuation-decision-incomplete",
+            "Cannot close plan until the continuation decision is recorded:\n"
             + messages
-            + "\nRun `phase-set` and update `workstreams.md` or `tech-debt-tracker.md` before closing.",
+            + "\nRecord a continuation decision before closing.",
             {"issues": issues},
         )
 
@@ -2769,6 +2979,7 @@ def check_harness(repo):
                         "message": "Completed plan Quality Result was not scored against the current Acceptance Contract.",
                     }
                 )
+            issues.extend(continuation_decision_issues(repo, plan_path, plan_path.read_text()))
 
     ledger = workstreams_path(repo)
     if ledger.exists():
@@ -3182,11 +3393,37 @@ def command_quality_score(args):
 
 def command_phase_set(args):
     repo = Path(args.repo).resolve()
-    plan_path, _ = plan_path_from_arg(repo, args.plan)
+    plan_path, relative_plan = plan_path_from_arg(repo, args.plan)
+    decision = map_legacy_phase_mode(args.mode)
+    resolved_workstream = args.workstream or (
+        default_workstream_id_from_plan(plan_path, plan_path.read_text()) if decision in {"continue", "pause"} else "none"
+    )
+    issues = continuation_command_issues(
+        repo,
+        relative_plan,
+        decision,
+        resolved_workstream,
+        args.continuation,
+        args.next_action,
+        args.closure_reason,
+        args.resume_notes,
+    )
+    if issues:
+        result = {
+            "status": "blocked",
+            "repo": str(repo),
+            "plan": str(plan_path),
+            "reason": "continuation-decision-incomplete",
+            "message": "Cannot update continuation decision until required fields are provided.",
+            "issues": issues,
+            "warning": "phase-set is deprecated; use continuation-set.",
+        }
+        write_json(args.output, result)
+        raise SystemExit(1)
     result = update_phase_continuity(
         plan_path,
         args.mode,
-        args.workstream,
+        resolved_workstream,
         args.current_phase,
         args.next_phase,
         args.continuation,
@@ -3194,6 +3431,75 @@ def command_phase_set(args):
         args.closure_reason,
         args.resume_notes,
     )
+    if result["decision"] in {"continue", "pause"}:
+        append_workstream_entry(
+            repo,
+            result["workstream"],
+            "active" if result["decision"] == "continue" else "paused",
+            relative_plan,
+            "none",
+            args.next_action,
+            plan_goal_for_workstream(plan_path, args.closure_reason),
+            args.resume_notes,
+        )
+    result.update(
+        {
+            "repo": str(repo),
+            "plan": str(plan_path),
+            "warning": "phase-set is deprecated; use continuation-set.",
+        }
+    )
+    write_json(args.output, result)
+
+
+def command_continuation_set(args):
+    repo = Path(args.repo).resolve()
+    plan_path, relative_plan = plan_path_from_arg(repo, args.plan)
+    decision = args.decision.lower()
+    resolved_workstream = args.workstream or (
+        default_workstream_id_from_plan(plan_path, plan_path.read_text()) if decision in {"continue", "pause"} else "none"
+    )
+    issues = continuation_command_issues(
+        repo,
+        relative_plan,
+        decision,
+        resolved_workstream,
+        args.next_target,
+        args.next_action,
+        args.closure_reason,
+        args.resume_notes,
+    )
+    if issues:
+        result = {
+            "status": "blocked",
+            "repo": str(repo),
+            "plan": str(plan_path),
+            "reason": "continuation-decision-incomplete",
+            "message": "Cannot update continuation decision until required fields are provided.",
+            "issues": issues,
+        }
+        write_json(args.output, result)
+        raise SystemExit(1)
+    result = update_continuation_decision(
+        plan_path,
+        decision,
+        resolved_workstream,
+        args.next_target,
+        args.next_action,
+        args.closure_reason,
+        args.resume_notes,
+    )
+    if result["decision"] in {"continue", "pause"}:
+        append_workstream_entry(
+            repo,
+            result["workstream"],
+            "active" if result["decision"] == "continue" else "paused",
+            relative_plan,
+            "none",
+            result["next_action"],
+            plan_goal_for_workstream(plan_path, args.goal),
+            args.resume_notes,
+        )
     result.update({"repo": str(repo), "plan": str(plan_path)})
     write_json(args.output, result)
 
@@ -3420,6 +3726,23 @@ def build_parser():
     quality_score.add_argument("--allow-empty-notes", action="store_true")
     quality_score.add_argument("--output")
     quality_score.set_defaults(func=command_quality_score)
+
+    continuation_set = subparsers.add_parser("continuation-set")
+    continuation_set.add_argument("--repo", required=True)
+    continuation_set.add_argument("--plan", required=True)
+    continuation_set.add_argument(
+        "--decision",
+        choices=["complete", "continue", "pause", "stop", "defer"],
+        required=True,
+    )
+    continuation_set.add_argument("--workstream")
+    continuation_set.add_argument("--next-target", default="none")
+    continuation_set.add_argument("--next-action", default="none")
+    continuation_set.add_argument("--closure-reason", default="none")
+    continuation_set.add_argument("--resume-notes", default="none")
+    continuation_set.add_argument("--goal", default="")
+    continuation_set.add_argument("--output")
+    continuation_set.set_defaults(func=command_continuation_set)
 
     phase_set = subparsers.add_parser("phase-set")
     phase_set.add_argument("--repo", required=True)

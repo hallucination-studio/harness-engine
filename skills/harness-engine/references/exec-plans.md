@@ -30,13 +30,13 @@ Active plans, completed plans, JSON sidecars, and `workstreams.md` are durable p
 - quality result
 - defects to resolve
 - rework required
-- phase continuity
+- continuation decision
 - durable knowledge to capture
 - completion notes
 
 ## Operating Rule
 
-Update the active plan during the work. Define the Acceptance Contract before implementation, score the completed work against that contract, complete any required rework, record phase continuity for resumable work, move it to `completed`, and leave behind any durable facts in the right permanent docs.
+Update the active plan during the work. Define the Acceptance Contract before implementation, score the completed work against that contract, complete any required rework, record the continuation decision, move it to `completed`, and leave behind any durable facts in the right permanent docs.
 
 For small changes, keep the plan lightweight: narrow scope, short steps, and focused validation are acceptable. Do not skip `acceptance-set`, evidence-backed validation, `quality-score`, `plan-close`, or the final `check`.
 
@@ -44,7 +44,7 @@ Before scoring or closing, replace generic starter text with task-specific conte
 
 ## Closed Loop
 
-Use the script, not ad hoc manual edits, for the lifecycle:
+Codex should use the script, not ad hoc manual edits, for the lifecycle. Users express intent in natural language; Codex translates that intent into these commands:
 
 - `plan-start`: create a new active execution plan
 - `acceptance-set`: write concrete product, UX, architecture, reliability, and security acceptance criteria before implementation; this updates the structured sidecar fingerprint
@@ -53,7 +53,7 @@ Use the script, not ad hoc manual edits, for the lifecycle:
 - `defect-log`: record a bug found by validation, evals, browser testing, or code review; this invalidates any existing quality result and makes the defect the next rework input
 - `defect-resolve`: mark a logged defect fixed with validation or code evidence; re-run validation and `quality-score` before closing
 - `quality-score`: write a scored Quality Result into the plan based on the ready Acceptance Contract; every dimension must include an evidence note; if it fails, the generated `## Rework Required` section becomes the next implementation input
-- `phase-set`: declare whether phased or resumable work continues, pauses, stops, or completes
-- `workstream-upsert`: update `docs/exec-plans/workstreams.md` so interrupted work can be recovered without chat history
-- `plan-close`: refuse to close cleanly until the Acceptance Contract is ready, the Quality Result passes against the current contract fingerprint, phase continuity is recorded, and the listed knowledge items are marked as written to durable docs; blocked closes return structured JSON with `status: "blocked"`, `reason`, `message`, and `details`
+- `continuation-set`: declare whether the work is complete, continues, pauses, stops, or is deferred; `continue` and `pause` update `docs/exec-plans/workstreams.md` automatically after required fields validate, and `--goal` can set the resumable workstream goal
+- `workstream-upsert`: manually update `docs/exec-plans/workstreams.md` when repairing or migrating resumable workstream state
+- `plan-close`: refuse to close cleanly until the Acceptance Contract is ready, the Quality Result passes against the current contract fingerprint, the continuation decision is recorded, and the listed knowledge items are marked as written to durable docs; blocked closes return structured JSON with `status: "blocked"`, `reason`, `message`, and `details`
 - `check`: run a local handoff check without requiring target-repo CI

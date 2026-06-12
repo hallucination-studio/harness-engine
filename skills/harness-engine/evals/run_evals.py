@@ -6,12 +6,16 @@ import subprocess
 import sys
 import tempfile
 import time
+import importlib.util
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = SKILL_DIR.parents[1]
 MANAGER = SKILL_DIR / "scripts" / "manage_harness.py"
 CASES_PATH = Path(__file__).with_name("cases.json")
+MANAGER_SPEC = importlib.util.spec_from_file_location("manage_harness_eval", MANAGER)
+MANAGER_MODULE = importlib.util.module_from_spec(MANAGER_SPEC)
+MANAGER_SPEC.loader.exec_module(MANAGER_MODULE)
 
 
 def load_case_metadata():
@@ -118,6 +122,27 @@ def set_acceptance(repo, relative_plan, **kwargs):
     )
 
 
+def set_continuation_complete(repo, relative_plan):
+    return run_manager(
+        "continuation-set",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--decision",
+        "complete",
+        "--closure-reason",
+        "The eval plan is complete and has no follow-up workstream.",
+    )
+
+
+def continuation_codes(repo, plan_path):
+    return {
+        issue["code"]
+        for issue in MANAGER_MODULE.continuation_decision_issues(repo, plan_path, plan_path.read_text())
+    }
+
+
 def fill_plan_details(plan_path):
     path = Path(plan_path)
     text = path.read_text()
@@ -167,7 +192,7 @@ def test_empty_repo_init(tmp_root):
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/active/")
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/workstreams.md")
     assert_contains(repo, "AGENTS.md", "docs/sops/")
-    assert_contains(repo, "AGENTS.md", ".codex/skills/harness-engine/scripts/manage_harness.py check")
+    assert_contains(repo, "AGENTS.md", "Codex runs the local harness check before handoff")
     assert_contains(repo, "AGENTS.md", "## Harness Task Intake")
     assert_contains(repo, "AGENTS.md", "Default rule: any request that changes repository files or behavior goes through the harness lifecycle")
     assert_contains(repo, "AGENTS.md", "No-plan exceptions are narrow")
@@ -188,6 +213,8 @@ def test_empty_repo_init(tmp_root):
     assert_contains(repo, "docs/PLANS.md", "For small changes, keep the plan lightweight")
     assert_contains(repo, "docs/PLANS.md", "Only skip an execution plan for pure question answering")
     assert_contains(repo, "docs/exec-plans/active/README.md", "Create one markdown file per in-flight repository change")
+    assert_contains(repo, "docs/exec-plans/active/_template.md", "## Continuation Decision")
+    assert_contains(repo, "docs/exec-plans/active/_template.md", "Decision: pending")
     assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Read Harness Task Intake in `AGENTS.md`")
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Evidence Requirements")
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Treat LLM or human judgment as a summary over evidence")
@@ -373,11 +400,11 @@ def test_broad_task_intake_routes_repo_changes(tmp_root):
         "Default rule: any request that changes repository files or behavior goes through the harness lifecycle",
         "code, docs, configuration, tests, dependencies, generated templates, build/release scripts, runtime behavior, migrations, cleanup",
         "No-plan exceptions are narrow",
-        "Create or reuse an active plan with `plan-start`",
-        "Define a ready Acceptance Contract with `acceptance-set` before implementation",
-        "score with `quality-score`",
-        "Close with `plan-close`",
-        "check --repo .",
+        "Codex creates or reuses an active plan with `plan-start`",
+        "Codex defines a ready Acceptance Contract with `acceptance-set` before implementation",
+        "have Codex score with `quality-score`",
+        "Codex closes with `plan-close`",
+        "Codex runs the local harness check before handoff",
     ]:
         if needle not in agents:
             raise AssertionError(f"AGENTS.md should include broad task intake rule: {needle}")
@@ -552,6 +579,7 @@ def test_closed_loop_plan(tmp_root):
         raise AssertionError("Failing quality score should keep a rework section")
     if "Improve Architecture and maintainability" not in plan_text_after_fail:
         raise AssertionError("Failing quality score should name the low dimension")
+    set_continuation_complete(repo, relative_plan)
     check_after_fail = run_manager("check", "--repo", str(repo))
     if check_after_fail["status"] != "pass":
         raise AssertionError("Active plan check should require acceptance readiness, not a passing post-implementation score")
@@ -680,6 +708,7 @@ def test_closed_loop_plan(tmp_root):
         raise AssertionError("Id/evidence closure should not require appending the exact fact to the destination")
     if "| evidence: main package owns keyboard input and rendering" not in plan_text:
         raise AssertionError("Closed knowledge item should record the verification evidence")
+    set_continuation_complete(repo, id_relative_plan)
     run_manager(
         "plan-close",
         "--repo",
@@ -733,8 +762,8 @@ def test_preserve_unmanaged_docs(tmp_root):
     assert_exists(repo, "docs/PLANS.md")
 
 
-def test_phase_continuity_workstream(tmp_root):
-    repo = tmp_root / "phase-repo"
+def test_continuation_decision_workstream(tmp_root):
+    repo = tmp_root / "continuation-repo"
     repo.mkdir()
     answers = tmp_root / "phase-answers.json"
     write_answers(answers, project_name="phase-demo")
@@ -751,6 +780,9 @@ def test_phase_continuity_workstream(tmp_root):
     )
     plan_path = Path(plan_result["plan"])
     fill_plan_details(plan_path)
+    plan_relative_for_assert = str(plan_path.resolve().relative_to(repo.resolve()))
+    assert_contains(repo, plan_relative_for_assert, "## Continuation Decision")
+    assert_contains(repo, plan_relative_for_assert, "Decision: pending")
     relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
     set_acceptance(repo, relative_plan)
     run_manager(
@@ -784,65 +816,35 @@ def test_phase_continuity_workstream(tmp_root):
         "Phase 1 done",
         expect_success=False,
     )
-    if close_without_continuity.get("reason") != "phase-continuity-incomplete":
-        raise AssertionError("plan-close should return structured phase-continuity-incomplete JSON")
+    if close_without_continuity.get("reason") != "continuation-decision-incomplete":
+        raise AssertionError("plan-close should return structured continuation-decision-incomplete JSON")
     check_without_continuity = run_manager("check", "--repo", str(repo), expect_success=False)
     issue_codes = {issue["code"] for issue in check_without_continuity["issues"]}
-    if "phase-mode-not-declared" not in issue_codes:
-        raise AssertionError("check should flag phased plans that do not declare continuation")
+    if "continuation-decision-pending" not in issue_codes:
+        raise AssertionError("check should flag plans that do not declare a continuation decision")
 
     run_manager(
-        "phase-set",
+        "continuation-set",
         "--repo",
         str(repo),
         "--plan",
         relative_plan,
-        "--mode",
-        "multi-phase",
+        "--decision",
+        "continue",
         "--workstream",
         "local-workbench",
-        "--current-phase",
-        "1",
-        "--next-phase",
-        "2",
-        "--continuation",
+        "--next-target",
         "docs/exec-plans/workstreams.md#local-workbench",
         "--next-action",
         "Create Phase 2 plan for command adapters",
         "--resume-notes",
         "Read completed Phase 1 plan and ARCHITECTURE.md before continuing",
     )
-    close_without_workstream = run_manager(
-        "plan-close",
-        "--repo",
-        str(repo),
-        "--plan",
-        relative_plan,
-        "--summary",
-        "Phase 1 done",
-        expect_success=False,
-    )
-    if close_without_workstream.get("reason") != "phase-continuity-incomplete":
-        raise AssertionError("plan-close should return structured phase-continuity-incomplete JSON for missing workstream ledger")
-    run_manager(
-        "workstream-upsert",
-        "--repo",
-        str(repo),
-        "--id",
-        "local-workbench",
-        "--status",
-        "active",
-        "--current-plan",
-        relative_plan,
-        "--next-action",
-        "Create Phase 2 plan for command adapters",
-        "--goal",
-        "Refactor local workbench into a maintainable terminal workflow",
-        "--resume-notes",
-        "Read completed Phase 1 plan and ARCHITECTURE.md before continuing",
-    )
     assert_contains(repo, "docs/exec-plans/workstreams.md", "local-workbench")
     assert_contains(repo, "docs/exec-plans/workstreams.md", "Create Phase 2 plan for command adapters")
+    assert_contains(repo, "docs/exec-plans/workstreams.md", "Goal: Complete Local Workbench Phase 1")
+    if "Goal: none" in (repo / "docs/exec-plans/workstreams.md").read_text():
+        raise AssertionError("continuation-set should derive a useful workstream goal instead of writing Goal: none")
     close_result = run_manager(
         "plan-close",
         "--repo",
@@ -866,6 +868,127 @@ def test_phase_continuity_workstream(tmp_root):
     broken_codes = {issue["code"] for issue in broken_check["issues"]}
     if "missing-workstream-plan-reference" not in broken_codes:
         raise AssertionError("check should fail when workstream ledger points to a missing plan")
+
+    complete_plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "single-plan-complete",
+        "--goal",
+        "Validate complete continuation decision",
+    )
+    complete_plan = Path(complete_plan_result["plan"])
+    fill_plan_details(complete_plan)
+    complete_relative = str(complete_plan.resolve().relative_to(repo.resolve()))
+    set_acceptance(repo, complete_relative)
+    run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        complete_relative,
+        "--product-correctness",
+        "8",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+        *quality_note_args(product="Complete continuation decision was validated by eval closure."),
+    )
+    set_continuation_complete(repo, complete_relative)
+    complete_close = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        complete_relative,
+        "--summary",
+        "Closed as complete with no follow-up.",
+    )
+    if complete_close["status"] != "closed":
+        raise AssertionError("complete continuation decision should allow single-plan closure")
+
+    pause_plan = repo / "docs" / "exec-plans" / "active" / "pause-plan.md"
+    pause_plan.write_text(
+        "# Execution Plan: Pause Plan\n\n## Continuation Decision\n\nDecision: pause\nWorkstream: pause-demo\nNext target: docs/exec-plans/workstreams.md#pause-demo\nNext action: Resume after dependency lands\nClosure reason: none\nResume notes: none\n"
+    )
+    pause_issues = continuation_codes(repo, pause_plan)
+    if "missing-resume-condition" not in pause_issues or "missing-resume-notes" not in pause_issues:
+        raise AssertionError("pause decisions should require resume condition and notes")
+    invalid_pause = run_manager(
+        "continuation-set",
+        "--repo",
+        str(repo),
+        "--plan",
+        str(pause_plan.relative_to(repo)),
+        "--decision",
+        "pause",
+        "--workstream",
+        "pause-demo",
+        "--next-target",
+        "docs/exec-plans/workstreams.md#pause-demo",
+        "--next-action",
+        "Resume after dependency lands",
+        expect_success=False,
+    )
+    invalid_pause_codes = {issue["code"] for issue in invalid_pause.get("issues", [])}
+    if "missing-resume-condition" not in invalid_pause_codes or "missing-resume-notes" not in invalid_pause_codes:
+        raise AssertionError("continuation-set should reject pause before writing when resume fields are missing")
+    if "pause-demo" in (repo / "docs/exec-plans/workstreams.md").read_text():
+        raise AssertionError("invalid pause continuation-set should not write a half-valid workstream")
+    run_manager(
+        "continuation-set",
+        "--repo",
+        str(repo),
+        "--plan",
+        str(pause_plan.relative_to(repo)),
+        "--decision",
+        "pause",
+        "--workstream",
+        "pause-demo",
+        "--next-target",
+        "docs/exec-plans/workstreams.md#pause-demo",
+        "--next-action",
+        "Resume after dependency lands",
+        "--closure-reason",
+        "Resume when the dependency is released",
+        "--resume-notes",
+        "Read dependency release notes before continuing",
+    )
+    if continuation_codes(repo, pause_plan):
+        raise AssertionError("pause decision with resume condition and notes should validate")
+
+    defer_plan = repo / "docs" / "exec-plans" / "active" / "defer-plan.md"
+    defer_plan.write_text(
+        "# Execution Plan: Defer Plan\n\n## Continuation Decision\n\nDecision: defer\nWorkstream: none\nNext target: none\nNext action: none\nClosure reason: Follow-up is outside this workstream\nResume notes: none\n"
+    )
+    if "missing-deferred-target" not in continuation_codes(repo, defer_plan):
+        raise AssertionError("defer decisions should require a tech-debt or follow-up target")
+
+    legacy_plan = repo / "docs" / "exec-plans" / "active" / "legacy-plan.md"
+    legacy_plan.write_text(
+        "# Execution Plan: Legacy Plan\n\n## Phase Continuity\n\nMode: single-phase\nWorkstream: none\nCurrent phase: none\nNext phase: none\nContinuation: none\nNext action: none\nClosure reason: Legacy single-phase plan is complete.\nResume notes: none\n"
+    )
+    if continuation_codes(repo, legacy_plan):
+        raise AssertionError("legacy single-phase Phase Continuity should map to complete")
+    alias_result = run_manager(
+        "phase-set",
+        "--repo",
+        str(repo),
+        "--plan",
+        str(legacy_plan.relative_to(repo)),
+        "--mode",
+        "completed",
+        "--closure-reason",
+        "Legacy alias remains supported.",
+    )
+    if alias_result["decision"] != "complete" or "deprecated" not in alias_result.get("warning", ""):
+        raise AssertionError("phase-set should remain as a deprecated compatibility alias")
 
 
 def test_plan_path_canonicalization(tmp_root):
@@ -909,19 +1032,19 @@ def test_plan_path_canonicalization(tmp_root):
         ),
     )
     run_manager(
-        "workstream-upsert",
+        "continuation-set",
         "--repo",
         str(repo),
-        "--id",
-        "canonical-close",
-        "--status",
-        "active",
-        "--current-plan",
+        "--plan",
         relative_plan,
+        "--decision",
+        "continue",
+        "--workstream",
+        "canonical-close",
+        "--next-target",
+        "docs/exec-plans/workstreams.md#canonical-close",
         "--next-action",
         "Close after canonical path validation",
-        "--goal",
-        "Verify plan-close updates workstreams with normalized relative paths",
         "--resume-notes",
         "No special resume notes",
     )
@@ -1081,6 +1204,7 @@ def test_defect_recovery_loop(tmp_root):
     )
     if passing_score["status"] != "pass":
         raise AssertionError("quality-score should pass after defects are resolved")
+    set_continuation_complete(repo, relative_plan)
     close_result = run_manager(
         "plan-close",
         "--repo",
@@ -1302,6 +1426,7 @@ def test_structured_plan_sidecar_and_acceptance(tmp_root):
     ready = set_acceptance(repo, relative_plan)
     if ready["status"] != "ready" or not ready["criteria_fingerprint"]:
         raise AssertionError("acceptance-set should mark the contract ready with a fingerprint")
+    set_continuation_complete(repo, relative_plan)
     check_ready = run_manager("check", "--repo", str(repo))
     if check_ready["status"] != "pass":
         raise AssertionError("active check should pass with ready acceptance contract and no open defects")
@@ -1382,6 +1507,7 @@ def test_plan_close_rejects_template_placeholders(tmp_root):
         "8",
         *quality_note_args(),
     )
+    set_continuation_complete(repo, relative_plan)
     blocked = run_manager(
         "plan-close",
         "--repo",
@@ -1447,6 +1573,7 @@ def test_plan_close_returns_open_knowledge_json(tmp_root):
         "8",
         *quality_note_args(),
     )
+    set_continuation_complete(repo, relative_plan)
     blocked = run_manager(
         "plan-close",
         "--repo",
@@ -1540,6 +1667,7 @@ def test_plan_close_moves_sidecar_and_rejects_stale_score(tmp_root):
         "8",
         *quality_note_args(product="Changed acceptance criterion was rescored with eval command evidence."),
     )
+    set_continuation_complete(repo, relative_plan)
     close_result = run_manager(
         "plan-close",
         "--repo",
@@ -1828,7 +1956,7 @@ EVALS = [
     ("clean-removes-runtime-state-and-untracks-artifacts", test_clean_removes_runtime_state_and_untracks_artifacts),
     ("broad-task-intake-routes-repo-changes", test_broad_task_intake_routes_repo_changes),
     ("closed-loop-plan", test_closed_loop_plan),
-    ("phase-continuity-workstream", test_phase_continuity_workstream),
+    ("continuation-decision-workstream", test_continuation_decision_workstream),
     ("plan-path-canonicalization", test_plan_path_canonicalization),
     ("defect-recovery-loop", test_defect_recovery_loop),
     ("quality-score-requires-notes", test_quality_score_requires_notes),
