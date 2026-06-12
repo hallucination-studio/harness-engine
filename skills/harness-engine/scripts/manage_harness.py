@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
 from datetime import UTC, datetime
@@ -17,6 +18,17 @@ OBSOLETE_MANAGED_MARKERS = [
 ]
 DEFAULT_KNOWLEDGE_PLACEHOLDER = "- [ ] Add durable facts here as they emerge -> <destination-doc>"
 DEFAULT_DEFECT_PLACEHOLDER = "None."
+PLAN_PLACEHOLDERS = [
+    "Define in-scope work.",
+    "Define out-of-scope work.",
+    "Add relevant product, architecture, reliability, security, or delivery constraints.",
+    "Add the first concrete step.",
+    "Add the next concrete step.",
+    "Add the next step.",
+    "Describe how the work will be verified.",
+    "List product, architecture, reliability, security, or delivery constraints.",
+    "Describe what is included and excluded.",
+]
 GITIGNORE_BLOCK_START = "# harness-engine transient files"
 GITIGNORE_BLOCK_END = "# end harness-engine transient files"
 GITIGNORE_ENTRIES = [
@@ -58,20 +70,30 @@ PLAN_TEMPLATE = """# Execution Plan: {title}
 
 - Describe how the work will be verified.
 
-## Quality Gate
+## Acceptance Contract
+
+Status: draft
+Fingerprint: pending
+
+Run `acceptance-set` before implementation to define specific product, UX, architecture, reliability, and security acceptance criteria.
+
+| Dimension | Criteria |
+| --- | --- |
+| Product correctness | pending |
+| UX and operator clarity | pending |
+| Architecture and maintainability | pending |
+| Reliability and observability | pending |
+| Security and data handling | pending |
+
+## Quality Result
 
 Status: pending
 Minimum score: 8.0
 Average score: pending
 Last scored: pending
+Criteria fingerprint: pending
 
-| Dimension | Score | Notes |
-| --- | ---: | --- |
-| Product correctness | pending | Confirm the requested behavior is complete. |
-| UX and operator clarity | pending | Confirm the user or operator experience is understandable. |
-| Architecture and maintainability | pending | Confirm the implementation is clean and easy to change. |
-| Reliability and observability | pending | Confirm the validation loop and failure handling are sufficient. |
-| Security and data handling | pending | Confirm secrets and sensitive data are handled safely. |
+Run `quality-score` after implementation and validation. Scores must cite evidence for the ready acceptance contract.
 
 ## Defects To Resolve
 
@@ -79,7 +101,7 @@ Last scored: pending
 
 ## Rework Required
 
-- Pending quality score.
+- Acceptance Contract is not ready.
 
 ## Phase Continuity
 
@@ -139,7 +161,8 @@ For each issue:
 - Inspect the relevant code path, runtime path, and user/operator workflow.
 - If a code change is needed and no active plan exists, create one with `plan-start`.
 - Convert the issue into assertions, tests, smoke checks, or a regression case before changing code.
-- Log confirmed defects or missing evidence with `defect-log`; unresolved defects must block `quality-score`, `plan-close`, and handoff.
+- Define a ready Acceptance Contract with `acceptance-set` before implementation.
+- Log confirmed defects or missing evidence with `defect-log`; unresolved defects must block `plan-close`, and scoring must be rerun after defects are resolved.
 - Verify the fix against the same workflow and evidence type before claiming it is resolved.
 
 ## Repository Focus
@@ -156,10 +179,10 @@ For each issue:
 - Keep resumable feature, refactor, reliability, and cleanup work in `docs/exec-plans/workstreams.md`.
 - Move completed plans to `docs/exec-plans/completed/`.
 - Update plans during the work, not only at the end.
-- Score completed work with `quality-score` before closing an execution plan.
+- Define acceptance criteria with `acceptance-set` before implementation, then score completed work with `quality-score` before closing an execution plan.
 - If `quality-score` fails, treat `## Rework Required` as the next implementation input and do not close the plan.
 - Encode durable facts learned during execution into permanent docs before closing the task.
-- Before handoff, run the local harness check: `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo .`.
+- Before handoff, run the local harness check: `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo .`. Active plans must have ready Acceptance Contracts; completed plans must have passing Quality Results scored against the current contract.
 - Keep generated artifacts in `docs/generated/`.
 - Keep external references in `docs/references/`.
 """,
@@ -577,7 +600,7 @@ DOC_FILES = {
 - Security scores must cite threat checks, permission tests, sensitive-data path review, or secret-handling evidence.
 - Performance and reliability scores must cite baseline measurements, repeatable checks, failure-mode tests, or before/after evidence.
 - Reliability scores must cite repeatable commands, smoke checks, logs, traces, or failure-mode tests.
-- Every quality-score dimension requires a concrete evidence note; do not leave score notes empty.
+- Every quality-score dimension requires a concrete evidence note tied to the ready Acceptance Contract; do not leave score notes empty.
 - Open defects must be logged with `defect-log`; do not hide known failures inside a high numeric score.
 - Treat LLM or human judgment as a summary over evidence, not as the only eval signal.
 
@@ -652,7 +675,10 @@ Minimum contents:
 - constraints
 - steps
 - validation
-- quality gate
+- acceptance contract
+- quality result
+- defects to resolve
+- rework required
 - phase continuity
 - durable knowledge to capture
 """,
@@ -680,24 +706,34 @@ List product, architecture, reliability, security, or delivery constraints.
 
 - Describe how the work will be verified.
 
-## Quality Gate
+## Acceptance Contract
+
+Status: draft
+Fingerprint: pending
+
+Run `acceptance-set` before implementation to define specific product, UX, architecture, reliability, and security acceptance criteria.
+
+| Dimension | Criteria |
+| --- | --- |
+| Product correctness | pending |
+| UX and operator clarity | pending |
+| Architecture and maintainability | pending |
+| Reliability and observability | pending |
+| Security and data handling | pending |
+
+## Quality Result
 
 Status: pending
 Minimum score: 8.0
 Average score: pending
 Last scored: pending
+Criteria fingerprint: pending
 
-| Dimension | Score | Notes |
-| --- | ---: | --- |
-| Product correctness | pending | Confirm the requested behavior is complete. |
-| UX and operator clarity | pending | Confirm the user or operator experience is understandable. |
-| Architecture and maintainability | pending | Confirm the implementation is clean and easy to change. |
-| Reliability and observability | pending | Confirm the validation loop and failure handling is sufficient. |
-| Security and data handling | pending | Confirm secrets and sensitive data are handled safely. |
+Run `quality-score` after implementation and validation. Scores must cite evidence for the ready acceptance contract.
 
 ## Rework Required
 
-- Pending quality score.
+- Acceptance Contract is not ready.
 
 ## Phase Continuity
 
@@ -724,7 +760,7 @@ Summarize outcomes, follow-ups, and doc updates.
 Move finished plans here after:
 
 1. validation is complete
-2. the quality gate has passed
+2. the Acceptance Contract is ready and the Quality Result has passed
 3. phase continuity has been recorded for multi-phase work
 4. permanent docs have been updated
 5. any remaining follow-ups are recorded in workstreams, tech debt, or new plans
@@ -790,8 +826,8 @@ Describe the desired first successful experience for a new user of {project_name
     "docs/sops/evidence-first-eval-loop.md": """{marker}
 # SOP: Evidence-First Eval Loop
 
-1. Convert product requirements into explicit product contract checks before scoring.
-2. Run deterministic validation first: tests, API smoke checks, CLI checks, browser actions, and state assertions.
+1. Convert product requirements into explicit product contract checks and write them with `acceptance-set` before implementation.
+2. Run deterministic validation before scoring: tests, API smoke checks, CLI checks, browser actions, and state assertions.
 3. Read the Issue Workflows in `AGENTS.md` and the domain docs named there before judging or fixing.
 4. For frontend work, capture browser evidence: screenshots, DOM/accessibility snapshots, responsive checks, and layout invariants.
 5. For backend, architecture, data, security, and performance work, capture the domain evidence named in `AGENTS.md`.
@@ -863,6 +899,55 @@ QUALITY_NOTE_ARGS = {
     "reliability_observability": "reliability-note",
     "security_data_handling": "security-note",
 }
+ACCEPTANCE_ARGS = {
+    "product_correctness": "product",
+    "ux_operator_clarity": "ux",
+    "architecture_maintainability": "architecture",
+    "reliability_observability": "reliability",
+    "security_data_handling": "security",
+}
+GENERIC_ACCEPTANCE_PHRASES = [
+    "confirm the requested behavior is complete",
+    "confirm the user or operator experience is understandable",
+    "confirm the implementation is clean and easy to change",
+    "confirm the validation loop and failure handling are sufficient",
+    "confirm secrets and sensitive data are handled safely",
+    "requested behavior is complete",
+]
+EVIDENCE_HINTS = [
+    "test",
+    "pytest",
+    "go test",
+    "npm test",
+    "smoke",
+    "browser",
+    "screenshot",
+    "dom",
+    "accessibility",
+    "log",
+    "trace",
+    "review",
+    "inspected",
+    "verified",
+    "validated",
+    "command",
+    "path",
+    "file",
+    ".md",
+    ".py",
+    ".js",
+    ".ts",
+    ".tsx",
+    "./",
+]
+SIDECAR_VERSION = 1
+
+
+class PlanCloseError(RuntimeError):
+    def __init__(self, reason, message, details=None):
+        super().__init__(message)
+        self.reason = reason
+        self.details = details or {}
 
 
 def detect_languages(files):
@@ -1181,12 +1266,216 @@ def slugify(value):
     return normalized or "task"
 
 
+def utc_now_iso():
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def find_section(lines, heading):
     target = heading.strip().lower()
     for index, line in enumerate(lines):
         if line.strip().lower() == target:
             return index
     return None
+
+
+def sidecar_path_for_plan(plan_path):
+    return plan_path.with_suffix(".json")
+
+
+def plan_id_for_path(plan_path):
+    digest = hashlib.sha1(str(plan_path.name).encode()).hexdigest()
+    return f"plan-{digest[:10]}"
+
+
+def empty_acceptance_criteria():
+    return {key: "" for key, _ in QUALITY_DIMENSIONS}
+
+
+def criteria_fingerprint(criteria):
+    normalized = {
+        key: re.sub(r"\s+", " ", (criteria.get(key) or "").strip())
+        for key, _ in QUALITY_DIMENSIONS
+    }
+    payload = json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+
+def new_plan_state(plan_path, goal):
+    now = utc_now_iso()
+    return {
+        "schema_version": SIDECAR_VERSION,
+        "plan_id": plan_id_for_path(plan_path),
+        "goal": goal,
+        "created_at": now,
+        "updated_at": now,
+        "acceptance_contract": {
+            "status": "draft",
+            "criteria": empty_acceptance_criteria(),
+            "fingerprint": None,
+        },
+        "quality_result": {
+            "status": "pending",
+            "minimum": 8.0,
+            "average": None,
+            "scored_at": None,
+            "criteria_fingerprint": None,
+            "dimensions": {},
+        },
+        "defects": [],
+        "knowledge_items": [],
+        "implementation_dirty_after_score": False,
+        "dirty_reasons": [],
+        "markdown_path": str(plan_path),
+    }
+
+
+def load_plan_state(plan_path):
+    sidecar = sidecar_path_for_plan(plan_path)
+    if not sidecar.exists():
+        return None
+    return json.loads(sidecar.read_text())
+
+
+def save_plan_state(plan_path, state):
+    state["updated_at"] = utc_now_iso()
+    state["markdown_path"] = str(plan_path)
+    sidecar = sidecar_path_for_plan(plan_path)
+    ensure_parent(sidecar)
+    sidecar.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+
+
+def require_plan_state(plan_path):
+    state = load_plan_state(plan_path)
+    if state is None:
+        raise RuntimeError(
+            f"Plan is missing structured metadata sidecar: {sidecar_path_for_plan(plan_path)}. "
+            "Run migration or recreate the plan with `plan-start`."
+        )
+    return state
+
+
+def mark_state_dirty(plan_path, reason):
+    state = load_plan_state(plan_path)
+    if state is None:
+        return
+    if state.get("quality_result", {}).get("status") in {"pass", "fail"}:
+        state["implementation_dirty_after_score"] = True
+        reasons = state.setdefault("dirty_reasons", [])
+        if reason not in reasons:
+            reasons.append(reason)
+        quality = state.setdefault("quality_result", {})
+        quality["status"] = "pending"
+    save_plan_state(plan_path, state)
+
+
+def markdown_escape_cell(value):
+    return (value or "").replace("\n", " ").replace("|", "\\|").strip()
+
+
+def render_acceptance_contract(state):
+    contract = state.get("acceptance_contract", {})
+    criteria = contract.get("criteria", {})
+    fingerprint = contract.get("fingerprint") or "pending"
+    lines = [
+        f"Status: {contract.get('status', 'draft')}",
+        f"Fingerprint: {fingerprint}",
+        "",
+    ]
+    if contract.get("status") != "ready":
+        lines.append(
+            "Run `acceptance-set` before implementation to define specific product, UX, architecture, reliability, and security acceptance criteria."
+        )
+        lines.append("")
+    lines.extend(["| Dimension | Criteria |", "| --- | --- |"])
+    for key, label in QUALITY_DIMENSIONS:
+        criterion = criteria.get(key) or "pending"
+        lines.append(f"| {label} | {markdown_escape_cell(criterion)} |")
+    return "\n".join(lines)
+
+
+def render_quality_result(state):
+    quality = state.get("quality_result", {})
+    status = quality.get("status", "pending")
+    average = quality.get("average")
+    average_text = f"{average:.1f}" if isinstance(average, (int, float)) else "pending"
+    lines = [
+        f"Status: {status}",
+        f"Minimum score: {float(quality.get('minimum', 8.0)):.1f}",
+        f"Average score: {average_text}",
+        f"Last scored: {quality.get('scored_at') or 'pending'}",
+        f"Criteria fingerprint: {quality.get('criteria_fingerprint') or 'pending'}",
+        "",
+    ]
+    dimensions = quality.get("dimensions") or {}
+    if dimensions:
+        lines.extend(["| Dimension | Score | Evidence |", "| --- | ---: | --- |"])
+        for key, label in QUALITY_DIMENSIONS:
+            item = dimensions.get(key, {})
+            score = item.get("score")
+            score_text = f"{score:.1f}" if isinstance(score, (int, float)) else "pending"
+            evidence = item.get("evidence") or "pending"
+            lines.append(f"| {label} | {score_text} | {markdown_escape_cell(evidence)} |")
+    else:
+        lines.append("Run `quality-score` after implementation and validation. Scores must cite evidence for the ready acceptance contract.")
+    if state.get("implementation_dirty_after_score"):
+        lines.extend(["", "Result invalidated by later plan state changes. Re-run `quality-score`."])
+    return "\n".join(lines)
+
+
+def sync_plan_markdown_from_state(plan_path, state):
+    text = plan_path.read_text()
+    text = replace_section(text, "Acceptance Contract", render_acceptance_contract(state))
+    text = replace_section(text, "Quality Result", render_quality_result(state))
+    plan_path.write_text(text)
+
+
+def sync_state_from_markdown(plan_path, state):
+    text = plan_path.read_text()
+    state["defects"] = []
+    for item in extract_defect_items(text):
+        parsed = parse_defect_item(item)
+        if parsed:
+            state["defects"].append(parsed)
+    state["knowledge_items"] = []
+    for item in extract_knowledge_items(text):
+        if item == DEFAULT_KNOWLEDGE_PLACEHOLDER:
+            continue
+        parsed = parse_knowledge_item(item)
+        if parsed:
+            state["knowledge_items"].append(parsed)
+    save_plan_state(plan_path, state)
+    return state
+
+
+def specific_acceptance_issues(criteria):
+    issues = []
+    for key, label in QUALITY_DIMENSIONS:
+        value = (criteria.get(key) or "").strip()
+        words = re.findall(r"[A-Za-z0-9]+", value)
+        lower = value.lower()
+        if len(words) < 6:
+            issues.append({"dimension": label, "argument": "--" + ACCEPTANCE_ARGS[key], "message": "Acceptance criterion is too short or empty."})
+            continue
+        if any(phrase in lower for phrase in GENERIC_ACCEPTANCE_PHRASES):
+            issues.append({"dimension": label, "argument": "--" + ACCEPTANCE_ARGS[key], "message": "Acceptance criterion is a generic template phrase."})
+            continue
+        if lower in {"pending", "todo", "tbd", "n/a", "none"}:
+            issues.append({"dimension": label, "argument": "--" + ACCEPTANCE_ARGS[key], "message": "Acceptance criterion is not specific."})
+    return issues
+
+
+def ensure_acceptance_ready(plan_path):
+    state = require_plan_state(plan_path)
+    contract = state.get("acceptance_contract", {})
+    criteria = contract.get("criteria") or {}
+    issues = specific_acceptance_issues(criteria)
+    fingerprint = criteria_fingerprint(criteria)
+    if contract.get("status") != "ready" or issues or contract.get("fingerprint") != fingerprint:
+        raise RuntimeError(
+            "Cannot score before the Acceptance Contract is ready and specific. "
+            "Run `acceptance-set` with concrete criteria for all dimensions."
+        )
+    return state
 
 
 def extract_knowledge_items(text):
@@ -1312,11 +1601,11 @@ def replace_section(text, heading, body):
     return "\n".join(new_lines).rstrip() + "\n"
 
 
-def quality_gate_for_plan(text):
+def quality_result_for_plan(text):
     lines = text.splitlines()
-    section_index = find_section(lines, "## Quality Gate")
+    section_index = find_section(lines, "## Quality Result")
     if section_index is None:
-        return {"status": "missing", "minimum": None, "average": None, "scores": {}}
+        return {"status": "missing", "minimum": None, "average": None, "scores": {}, "criteria_fingerprint": None}
     section_lines = []
     for line in lines[section_index + 1 :]:
         if line.startswith("## "):
@@ -1326,6 +1615,7 @@ def quality_gate_for_plan(text):
     status_match = re.search(r"^Status:\s*(?P<status>\w+)", section_text, flags=re.MULTILINE)
     minimum_match = re.search(r"^Minimum score:\s*(?P<score>[0-9]+(?:\.[0-9]+)?)", section_text, flags=re.MULTILINE)
     average_match = re.search(r"^Average score:\s*(?P<score>[0-9]+(?:\.[0-9]+)?)", section_text, flags=re.MULTILINE)
+    fingerprint_match = re.search(r"^Criteria fingerprint:\s*(?P<fingerprint>[A-Fa-f0-9]+|pending)", section_text, flags=re.MULTILINE)
     scores = {}
     for _, label in QUALITY_DIMENSIONS:
         row_match = re.search(
@@ -1340,7 +1630,16 @@ def quality_gate_for_plan(text):
         "minimum": float(minimum_match.group("score")) if minimum_match else None,
         "average": float(average_match.group("score")) if average_match else None,
         "scores": scores,
+        "criteria_fingerprint": (
+            fingerprint_match.group("fingerprint")
+            if fingerprint_match and fingerprint_match.group("fingerprint") != "pending"
+            else None
+        ),
     }
+
+
+def quality_gate_for_plan(text):
+    return quality_result_for_plan(text)
 
 
 def section_key_values(text, heading):
@@ -1557,7 +1856,7 @@ def render_quality_gate(scores, notes, minimum, open_defects=None):
 def render_rework_section(passed, average, minimum, low_dimensions, notes, open_defects=None):
     open_defects = open_defects or []
     if passed:
-        return "None. Quality gate passed."
+        return "None. Quality Result passed."
     lines = [
         f"- Rework implementation until every quality dimension is at least {minimum:.1f}; current average is {average:.1f}.",
     ]
@@ -1574,10 +1873,27 @@ def render_rework_section(passed, average, minimum, low_dimensions, notes, open_
 
 
 def update_quality_gate(plan_path, scores, notes, minimum):
+    state = ensure_acceptance_ready(plan_path)
+    state = sync_state_from_markdown(plan_path, state)
+    open_defects = [defect for defect in state.get("defects", []) if defect.get("status") == "open"]
+    _, passed, average, low_dimensions = render_quality_gate(scores, notes, minimum, open_defects)
+    fingerprint = state["acceptance_contract"]["fingerprint"]
+    state["quality_result"] = {
+        "status": "pass" if passed else "fail",
+        "minimum": minimum,
+        "average": round(average, 1),
+        "scored_at": utc_now_iso(),
+        "criteria_fingerprint": fingerprint,
+        "dimensions": {
+            key: {"score": scores[key], "evidence": notes.get(key) or ""}
+            for key, _ in QUALITY_DIMENSIONS
+        },
+    }
+    state["implementation_dirty_after_score"] = False
+    state["dirty_reasons"] = []
+    save_plan_state(plan_path, state)
     text = plan_path.read_text()
-    open_defects = open_defects_for_plan(text)
-    gate_text, passed, average, low_dimensions = render_quality_gate(scores, notes, minimum, open_defects)
-    updated = replace_section(text, "Quality Gate", gate_text)
+    updated = replace_section(text, "Quality Result", render_quality_result(state))
     updated = replace_section(
         updated,
         "Rework Required",
@@ -1590,6 +1906,7 @@ def update_quality_gate(plan_path, scores, notes, minimum):
         "average": round(average, 1),
         "low_dimensions": low_dimensions,
         "open_defects": [defect["id"] for defect in open_defects],
+        "criteria_fingerprint": fingerprint,
     }
 
 
@@ -1607,24 +1924,68 @@ def missing_quality_notes(notes):
     return missing
 
 
-def assert_quality_gate_passed(plan_text):
-    open_defects = open_defects_for_plan(plan_text)
+def weak_quality_notes(notes):
+    weak = []
+    for key, label in QUALITY_DIMENSIONS:
+        note = (notes.get(key) or "").strip()
+        lower = note.lower()
+        if not note:
+            continue
+        if len(re.findall(r"[A-Za-z0-9./:-]+", note)) < 4 or not any(hint in lower for hint in EVIDENCE_HINTS):
+            weak.append(
+                {
+                    "dimension": label,
+                    "argument": "--" + QUALITY_NOTE_ARGS[key],
+                    "message": f"Provide concrete verification evidence for {label}, such as a command, browser check, log, code path, or review finding.",
+                }
+            )
+    return weak
+
+
+def assert_quality_gate_passed(plan_path, plan_text):
+    state = require_plan_state(plan_path)
+    state = sync_state_from_markdown(plan_path, state)
+    contract = state.get("acceptance_contract", {})
+    if contract.get("status") != "ready":
+        raise PlanCloseError("acceptance-contract-not-ready", "Cannot close plan until the Acceptance Contract is ready.")
+    current_fingerprint = criteria_fingerprint(contract.get("criteria") or {})
+    if contract.get("fingerprint") != current_fingerprint:
+        raise PlanCloseError(
+            "acceptance-fingerprint-stale",
+            "Cannot close plan because the Acceptance Contract fingerprint is stale. Re-run `acceptance-set`.",
+            {"current_fingerprint": current_fingerprint, "recorded_fingerprint": contract.get("fingerprint")},
+        )
+    open_defects = [defect for defect in state.get("defects", []) if defect.get("status") == "open"]
     if open_defects:
         defects = "\n".join(
             f"- {defect['id']} ({defect['severity']}): {defect['summary']}" for defect in open_defects
         )
-        raise RuntimeError(
-            "Cannot close plan with unresolved defects:\n"
-            + defects
-            + "\nRun `defect-resolve`, re-run validation, and score again."
+        raise PlanCloseError(
+            "open-defects",
+            "Cannot close plan with unresolved defects. Run `defect-resolve`, re-run validation, and score again.",
+            {"open_defects": open_defects, "defects_text": defects},
         )
-    gate = quality_gate_for_plan(plan_text)
-    if gate["status"] != "pass":
-        raise RuntimeError(
-            "Cannot close plan until the quality gate passes. "
-            "Run `quality-score`, fix any `## Rework Required` items, then score again."
+    quality = state.get("quality_result", {})
+    if state.get("implementation_dirty_after_score"):
+        raise PlanCloseError(
+            "quality-result-stale",
+            "Cannot close plan because plan state changed after the last quality score. Re-run `quality-score`.",
+            {"dirty_reasons": state.get("dirty_reasons", [])},
         )
-    return gate
+    if quality.get("status") != "pass":
+        raise PlanCloseError(
+            "quality-result-not-passing",
+            "Cannot close plan until the quality result passes. "
+            "Run `quality-score`, fix any `## Rework Required` items, then score again.",
+            {"quality_status": quality.get("status")},
+        )
+    if quality.get("criteria_fingerprint") != current_fingerprint:
+        raise PlanCloseError(
+            "quality-fingerprint-stale",
+            "Cannot close plan because the quality result was scored against a stale Acceptance Contract fingerprint.",
+            {"quality_fingerprint": quality.get("criteria_fingerprint"), "current_fingerprint": current_fingerprint},
+        )
+    return quality
 
 
 def render_phase_continuity(mode, workstream, current_phase, next_phase, continuation, next_action, closure_reason, resume_notes):
@@ -1774,10 +2135,32 @@ def assert_phase_continuity_closed(repo, plan_path, plan_text):
     issues = phase_continuity_issues(repo, plan_path, plan_text)
     if issues:
         messages = "\n".join(f"- {issue['code']}: {issue['message']}" for issue in issues)
-        raise RuntimeError(
+        raise PlanCloseError(
+            "phase-continuity-incomplete",
             "Cannot close plan until phase continuity is recorded:\n"
             + messages
-            + "\nRun `phase-set` and update `workstreams.md` or `tech-debt-tracker.md` before closing."
+            + "\nRun `phase-set` and update `workstreams.md` or `tech-debt-tracker.md` before closing.",
+            {"issues": issues},
+        )
+
+
+def plan_placeholder_issues(plan_text):
+    issues = []
+    for placeholder in PLAN_PLACEHOLDERS:
+        if placeholder in plan_text:
+            issues.append(placeholder)
+    return issues
+
+
+def assert_plan_placeholders_resolved(plan_text):
+    placeholders = plan_placeholder_issues(plan_text)
+    if placeholders:
+        raise PlanCloseError(
+            "plan-placeholders-unresolved",
+            "Cannot close plan with unresolved starter placeholders:\n"
+            + "\n".join(f"- {placeholder}" for placeholder in placeholders)
+            + "\nReplace generic Scope, Constraints, Steps, and Validation text with task-specific content before closing.",
+            {"placeholders": placeholders},
         )
 
 
@@ -1795,6 +2178,7 @@ def append_knowledge_item(plan_path, fact, destination):
     item = f"- [ ] [id:{item_id}] {fact} -> {destination}"
     updated_lines = filtered_lines[:insert_index] + [item] + filtered_lines[insert_index:]
     plan_path.write_text("\n".join(updated_lines).rstrip() + "\n")
+    mark_state_dirty(plan_path, "knowledge-item-logged")
     return item, item_id
 
 
@@ -1811,19 +2195,20 @@ def mark_quality_gate_blocked_by_defects(text):
     if not open_defects:
         return text
     lines = text.splitlines()
-    section_index = find_section(lines, "## Quality Gate")
+    section_index = find_section(lines, "## Quality Result")
     if section_index is None:
         gate_text = "\n".join(
             [
                 "Status: fail",
                 "Minimum score: 8.0",
                 "Average score: pending",
-                f"Last scored: {datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}",
+                f"Last scored: {utc_now_iso()}",
+                "Criteria fingerprint: pending",
                 "",
                 "Blocked by unresolved defects. Run `defect-resolve`, re-run validation, then run `quality-score`.",
             ]
         )
-        text = replace_section(text, "Quality Gate", gate_text)
+        text = replace_section(text, "Quality Result", gate_text)
     else:
         end_index = len(lines)
         for index in range(section_index + 1, len(lines)):
@@ -1835,14 +2220,14 @@ def mark_quality_gate_blocked_by_defects(text):
         updated_section = []
         for line in section_lines:
             if line.startswith("Status:"):
-                updated_section.append("Status: fail")
+                updated_section.append("Status: pending")
                 has_status = True
             elif line.startswith("Last scored:"):
-                updated_section.append(f"Last scored: {datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}")
+                updated_section.append(f"Last scored: {utc_now_iso()}")
             else:
                 updated_section.append(line)
         if not has_status:
-            updated_section.insert(0, "Status: fail")
+            updated_section.insert(0, "Status: pending")
         lines = lines[: section_index + 1] + updated_section + lines[end_index:]
         text = "\n".join(lines).rstrip() + "\n"
     return replace_section(text, "Rework Required", render_open_defect_rework(open_defects))
@@ -1868,6 +2253,7 @@ def append_defect_item(plan_path, severity, summary, evidence=None):
         item = f"{item} | evidence: {safe_evidence}"
     updated_lines = filtered_lines[:insert_index] + [item] + filtered_lines[insert_index:]
     plan_path.write_text(mark_quality_gate_blocked_by_defects("\n".join(updated_lines).rstrip() + "\n"))
+    mark_state_dirty(plan_path, "defect-logged")
     return item, item_id
 
 
@@ -1908,6 +2294,7 @@ def mark_defect_resolved(plan_path, defect_id, fix_evidence):
             "Defects resolved. Re-run validation and `quality-score` before closing.",
         )
     plan_path.write_text(text)
+    mark_state_dirty(plan_path, "defect-resolved")
 
 
 def mark_knowledge_items_closed(text):
@@ -2006,6 +2393,7 @@ def mark_single_knowledge_item_written(
         target_description = f"id: {knowledge_id}" if knowledge_id else f"fact: {fact_text}"
         raise ValueError(f"Open knowledge item not found for {target_description}")
     plan_path.write_text("\n".join(updated).rstrip() + "\n")
+    mark_state_dirty(plan_path, "knowledge-item-written")
 
 
 def should_write(path, refresh_managed, force):
@@ -2091,14 +2479,46 @@ def create_plan(repo, slug, goal):
         knowledge_section="- [ ] Add durable facts here as they emerge -> <destination-doc>",
     )
     plan_path.write_text(content)
+    state = new_plan_state(plan_path, goal)
+    save_plan_state(plan_path, state)
+    sync_plan_markdown_from_state(plan_path, state)
     return plan_path
+
+
+def set_acceptance_contract(plan_path, criteria):
+    state = require_plan_state(plan_path)
+    normalized = {key: clean_fact_text(criteria.get(key) or "") for key, _ in QUALITY_DIMENSIONS}
+    issues = specific_acceptance_issues(normalized)
+    if issues:
+        return {
+            "status": "fail",
+            "reason": "acceptance-criteria-not-specific",
+            "message": "acceptance-set requires concrete, task-specific criteria for every dimension.",
+            "issues": issues,
+        }
+    fingerprint = criteria_fingerprint(normalized)
+    state["acceptance_contract"] = {
+        "status": "ready",
+        "criteria": normalized,
+        "fingerprint": fingerprint,
+    }
+    if state.get("quality_result", {}).get("status") in {"pass", "fail"}:
+        state["implementation_dirty_after_score"] = True
+        reasons = state.setdefault("dirty_reasons", [])
+        if "acceptance-contract-changed" not in reasons:
+            reasons.append("acceptance-contract-changed")
+        state["quality_result"]["status"] = "pending"
+    save_plan_state(plan_path, state)
+    sync_plan_markdown_from_state(plan_path, state)
+    return {"status": "ready", "criteria_fingerprint": fingerprint}
 
 
 def close_plan(repo, plan_relative_path, summary, force):
     plan_path, active_relative_path = plan_path_from_arg(repo, plan_relative_path)
     text = plan_path.read_text()
     if not force:
-        assert_quality_gate_passed(text)
+        assert_plan_placeholders_resolved(text)
+        assert_quality_gate_passed(plan_path, text)
         assert_phase_continuity_closed(repo, plan_path, text)
     open_items = [
         item
@@ -2106,14 +2526,27 @@ def close_plan(repo, plan_relative_path, summary, force):
         if item.startswith("- [ ]") and item != DEFAULT_KNOWLEDGE_PLACEHOLDER
     ]
     if open_items and not force:
-        raise RuntimeError(
-            "Cannot close plan with unresolved durable knowledge items:\n" + "\n".join(open_items)
+        raise PlanCloseError(
+            "open-durable-knowledge",
+            "Cannot close plan with unresolved durable knowledge items.",
+            {"open_items": open_items},
         )
     updated_text = replace_completion_notes(mark_knowledge_items_closed(text), summary)
+    state = load_plan_state(plan_path)
+    if state is not None:
+        state = sync_state_from_markdown(plan_path, state)
     completed_dir = completed_plan_dir(repo)
     completed_dir.mkdir(parents=True, exist_ok=True)
     destination = completed_dir / plan_path.name
     destination.write_text(updated_text)
+    sidecar = sidecar_path_for_plan(plan_path)
+    destination_sidecar = sidecar_path_for_plan(destination)
+    if sidecar.exists():
+        if state is not None:
+            state["markdown_path"] = str(destination)
+            state["updated_at"] = utc_now_iso()
+            sidecar.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+        shutil.move(str(sidecar), str(destination_sidecar))
     plan_path.unlink()
     completed_relative_path = str(destination.relative_to(repo))
     update_workstreams_after_plan_close(repo, active_relative_path, completed_relative_path)
@@ -2152,26 +2585,61 @@ def check_harness(repo):
             if plan_path.name in {"README.md", "_template.md"}:
                 continue
             relative_plan = str(plan_path.relative_to(repo))
-            quality_gate = quality_gate_for_plan(plan_path.read_text())
-            if quality_gate["status"] == "missing":
+            plan_text = plan_path.read_text()
+            state = load_plan_state(plan_path)
+            if state is None:
                 issues.append(
                     {
                         "severity": "error",
-                        "code": "missing-quality-gate",
+                        "code": "missing-plan-sidecar",
                         "path": relative_plan,
-                        "message": "Active plan is missing a Quality Gate section.",
+                        "message": "Active plan is missing structured JSON sidecar metadata. Run migration or recreate it with plan-start.",
                     }
                 )
-            elif quality_gate["status"] != "pass":
+            else:
+                state = sync_state_from_markdown(plan_path, state)
+                contract = state.get("acceptance_contract", {})
+                criteria = contract.get("criteria") or {}
+                acceptance_issues = specific_acceptance_issues(criteria)
+                current_fingerprint = criteria_fingerprint(criteria)
+                if contract.get("status") != "ready" or acceptance_issues:
+                    issues.append(
+                        {
+                            "severity": "error",
+                            "code": "acceptance-contract-not-ready",
+                            "path": relative_plan,
+                            "message": "Active plan must have a ready, task-specific Acceptance Contract before implementation.",
+                            "acceptance_issues": acceptance_issues,
+                        }
+                    )
+                elif contract.get("fingerprint") != current_fingerprint:
+                    issues.append(
+                        {
+                            "severity": "error",
+                            "code": "acceptance-fingerprint-stale",
+                            "path": relative_plan,
+                            "message": "Active plan Acceptance Contract fingerprint does not match current criteria.",
+                        }
+                    )
+            if find_section(plan_text.splitlines(), "## Acceptance Contract") is None:
                 issues.append(
                     {
                         "severity": "error",
-                        "code": "quality-gate-not-passing",
+                        "code": "missing-acceptance-contract",
                         "path": relative_plan,
-                        "message": "Active plan quality gate has not passed; score the work and finish rework before handoff.",
+                        "message": "Active plan is missing an Acceptance Contract section.",
                     }
                 )
-            for defect in open_defects_for_plan(plan_path.read_text()):
+            if find_section(plan_text.splitlines(), "## Quality Result") is None:
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "missing-quality-result",
+                        "path": relative_plan,
+                        "message": "Active plan is missing a Quality Result section.",
+                    }
+                )
+            for defect in open_defects_for_plan(plan_text):
                 issues.append(
                     {
                         "severity": "error",
@@ -2182,8 +2650,8 @@ def check_harness(repo):
                         "message": f"Active plan has an unresolved defect: {defect['summary']}",
                     }
                 )
-            issues.extend(phase_continuity_issues(repo, plan_path, plan_path.read_text()))
-            for item in extract_knowledge_items(plan_path.read_text()):
+            issues.extend(phase_continuity_issues(repo, plan_path, plan_text))
+            for item in extract_knowledge_items(plan_text):
                 if item == DEFAULT_KNOWLEDGE_PLACEHOLDER:
                     continue
                 parsed = parse_knowledge_item(item)
@@ -2220,6 +2688,56 @@ def check_harness(repo):
                             "message": f"Marked knowledge evidence is missing from destination: {verification_text}",
                         }
                     )
+
+    completed_dir = completed_plan_dir(repo)
+    if completed_dir.exists():
+        for plan_path in sorted(completed_dir.glob("*.md")):
+            if plan_path.name == "README.md":
+                continue
+            relative_plan = str(plan_path.relative_to(repo))
+            state = load_plan_state(plan_path)
+            if state is None:
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "missing-plan-sidecar",
+                        "path": relative_plan,
+                        "message": "Completed plan is missing structured JSON sidecar metadata. Run migration or recreate structured plan history.",
+                    }
+                )
+                continue
+            state = sync_state_from_markdown(plan_path, state)
+            contract = state.get("acceptance_contract", {})
+            criteria = contract.get("criteria") or {}
+            current_fingerprint = criteria_fingerprint(criteria)
+            quality = state.get("quality_result", {})
+            if contract.get("status") != "ready":
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "completed-acceptance-contract-not-ready",
+                        "path": relative_plan,
+                        "message": "Completed plan must have a ready Acceptance Contract.",
+                    }
+                )
+            if quality.get("status") != "pass":
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "completed-quality-result-not-passing",
+                        "path": relative_plan,
+                        "message": "Completed plan must have a passing Quality Result.",
+                    }
+                )
+            if quality.get("criteria_fingerprint") != current_fingerprint:
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "completed-quality-fingerprint-stale",
+                        "path": relative_plan,
+                        "message": "Completed plan Quality Result was not scored against the current Acceptance Contract.",
+                    }
+                )
 
     ledger = workstreams_path(repo)
     if ledger.exists():
@@ -2468,8 +2986,31 @@ def command_init(args):
 def command_plan_start(args):
     repo = Path(args.repo).resolve()
     plan_path = create_plan(repo, args.slug, args.goal)
-    result = {"repo": str(repo), "plan": str(plan_path), "status": "created"}
+    result = {
+        "repo": str(repo),
+        "plan": str(plan_path),
+        "metadata": str(sidecar_path_for_plan(plan_path)),
+        "acceptance_contract": "draft",
+        "status": "created",
+    }
     write_json(args.output, result)
+
+
+def command_acceptance_set(args):
+    repo = Path(args.repo).resolve()
+    plan_path, _ = plan_path_from_arg(repo, args.plan)
+    criteria = {
+        "product_correctness": args.product,
+        "ux_operator_clarity": args.ux,
+        "architecture_maintainability": args.architecture,
+        "reliability_observability": args.reliability,
+        "security_data_handling": args.security,
+    }
+    result = set_acceptance_contract(plan_path, criteria)
+    result.update({"repo": str(repo), "plan": str(plan_path), "metadata": str(sidecar_path_for_plan(plan_path))})
+    write_json(args.output, result)
+    if result["status"] != "ready":
+        raise SystemExit(1)
 
 
 def command_knowledge_log(args):
@@ -2513,7 +3054,25 @@ def command_defect_resolve(args):
 
 def command_plan_close(args):
     repo = Path(args.repo).resolve()
-    destination, unresolved = close_plan(repo, args.plan, args.summary, args.force)
+    try:
+        destination, unresolved = close_plan(repo, args.plan, args.summary, args.force)
+    except PlanCloseError as error:
+        plan = None
+        try:
+            plan_path, _ = plan_path_from_arg(repo, args.plan)
+            plan = str(plan_path)
+        except Exception:
+            plan = args.plan
+        result = {
+            "repo": str(repo),
+            "plan": plan,
+            "status": "blocked",
+            "reason": error.reason,
+            "message": str(error),
+            "details": error.details,
+        }
+        write_json(args.output, result)
+        raise SystemExit(1)
     result = {
         "repo": str(repo),
         "closed_plan": str(destination),
@@ -2533,6 +3092,18 @@ def score_arg(args, name):
 def command_quality_score(args):
     repo = Path(args.repo).resolve()
     plan_path, _ = plan_path_from_arg(repo, args.plan)
+    try:
+        ensure_acceptance_ready(plan_path)
+    except RuntimeError as error:
+        result = {
+            "status": "fail",
+            "repo": str(repo),
+            "plan": str(plan_path),
+            "reason": "acceptance-contract-not-ready",
+            "message": str(error),
+        }
+        write_json(args.output, result)
+        raise SystemExit(1)
     scores = {
         "product_correctness": score_arg(args, "product_correctness"),
         "ux_operator_clarity": score_arg(args, "ux_operator_clarity"),
@@ -2556,6 +3127,18 @@ def command_quality_score(args):
             "reason": "missing-quality-notes",
             "message": "quality-score requires evidence notes for every dimension.",
             "missing_notes": missing_notes,
+        }
+        write_json(args.output, result)
+        raise SystemExit(1)
+    weak_notes = weak_quality_notes(notes)
+    if weak_notes and not args.allow_empty_notes:
+        result = {
+            "status": "fail",
+            "repo": str(repo),
+            "plan": str(plan_path),
+            "reason": "weak-quality-notes",
+            "message": "quality-score requires concrete verification evidence notes.",
+            "weak_notes": weak_notes,
         }
         write_json(args.output, result)
         raise SystemExit(1)
@@ -2727,6 +3310,17 @@ def build_parser():
     plan_start.add_argument("--goal", required=True)
     plan_start.add_argument("--output")
     plan_start.set_defaults(func=command_plan_start)
+
+    acceptance_set = subparsers.add_parser("acceptance-set")
+    acceptance_set.add_argument("--repo", required=True)
+    acceptance_set.add_argument("--plan", required=True)
+    acceptance_set.add_argument("--product", required=True)
+    acceptance_set.add_argument("--ux", required=True)
+    acceptance_set.add_argument("--architecture", required=True)
+    acceptance_set.add_argument("--reliability", required=True)
+    acceptance_set.add_argument("--security", required=True)
+    acceptance_set.add_argument("--output")
+    acceptance_set.set_defaults(func=command_acceptance_set)
 
     knowledge_log = subparsers.add_parser("knowledge-log")
     knowledge_log.add_argument("--repo", required=True)

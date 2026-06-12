@@ -29,7 +29,7 @@
   },
   {
     "id": "defect-recovery-loop",
-    "description": "Validation or review defects should block quality gates until resolved with evidence."
+    "description": "Validation or review defects should invalidate quality results and block closure until resolved with evidence."
   },
   {
     "id": "quality-score-requires-notes",
@@ -38,6 +38,26 @@
   {
     "id": "knowledge-evidence-verbatim",
     "description": "Knowledge closure should reject paraphrased evidence and accept exact destination text."
+  },
+  {
+    "id": "structured-plan-sidecar-and-acceptance",
+    "description": "Plan start should create Markdown plus JSON sidecar state, and active checks should require a ready Acceptance Contract."
+  },
+  {
+    "id": "quality-score-requires-ready-acceptance",
+    "description": "Quality scoring should fail before acceptance criteria are ready."
+  },
+  {
+    "id": "plan-close-rejects-template-placeholders",
+    "description": "Plan closure should reject unresolved starter placeholders even after acceptance and scoring pass."
+  },
+  {
+    "id": "plan-close-returns-open-knowledge-json",
+    "description": "Plan closure should return structured JSON when durable knowledge remains open."
+  },
+  {
+    "id": "plan-close-moves-sidecar-and-rejects-stale-score",
+    "description": "Plan closure should reject stale contract fingerprints and move Markdown plus sidecar metadata together."
   },
   {
     "id": "evidence-prune-generated-artifacts",

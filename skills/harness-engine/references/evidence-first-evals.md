@@ -69,8 +69,9 @@ Minimum expectations by domain:
   and before/after comparison.
 
 Confirmed defects or evidence gaps should be logged into the active plan before quality scoring.
-Each `quality-score` dimension must include a concrete evidence note. A numeric score without
-evidence is not a valid readiness signal.
+Before implementation, write the concrete Acceptance Contract with `acceptance-set`. Each
+`quality-score` dimension must include a concrete evidence note tied to that contract. A numeric
+score without evidence is not a valid readiness signal.
 
 Use exact evidence when closing knowledge items: the text passed to `knowledge-mark-written`
 must already appear in the durable destination doc. If the destination uses different wording,
@@ -119,7 +120,7 @@ Add regression cases for failures that were previously missed.
 A good bug-discovery eval proves two things:
 
 - the bad implementation fails a narrow test or observable assertion
-- the harness blocks closure through `defect-log`, `quality-score`, `plan-close`, and `check`
+- the harness blocks closure through `acceptance-set`, `defect-log`, `quality-score`, `plan-close`, and `check`
 
 Track missed-bug classes separately from generic test pass rate. Examples:
 
@@ -139,7 +140,7 @@ Useful aggregate metrics:
 - `product_contract_pass_rate`: product assertions passed divided by product assertions
 - `visual_evidence_coverage`: frontend cases with required screenshots/snapshots
 - `defect_block_rate`: known defects that blocked closure when injected
-- `missed_defect_count`: known defects that reached a passing quality gate
+- `missed_defect_count`: known defects that reached a passing Quality Result
 - `artifact_completeness`: required logs/screenshots/traces present
 - `llm_judge_agreement`: optional reviewer score agreement with labeled cases
 

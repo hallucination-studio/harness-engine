@@ -66,11 +66,11 @@ def assert_contains(repo, relative_path, needle):
 
 
 def quality_note_args(
-    product="Product behavior was validated by the eval case.",
-    ux="User/operator workflow evidence was validated by the eval case.",
-    architecture="Architecture and plan state were validated by the eval case.",
-    reliability="Repeatable validation evidence was produced by the eval case.",
-    security="Security and data-handling assumptions were checked by the eval case.",
+    product="Product behavior was validated by the eval case command.",
+    ux="User/operator workflow evidence was reviewed in the generated plan.",
+    architecture="Architecture and plan state were inspected in repository files.",
+    reliability="Repeatable validation command evidence was produced by the eval case.",
+    security="Security and data-handling assumptions were reviewed in generated metadata files.",
 ):
     return [
         "--product-note",
@@ -84,6 +84,53 @@ def quality_note_args(
         "--security-note",
         security,
     ]
+
+
+def acceptance_args(
+    product="The requested behavior is verified against a concrete product assertion for this eval case.",
+    ux="The user or operator workflow remains understandable for this eval case.",
+    architecture="The implementation keeps lifecycle state and repository boundaries maintainable for this eval case.",
+    reliability="The eval case records repeatable command evidence for the lifecycle behavior.",
+    security="The eval case confirms no secrets or sensitive data are introduced into plan metadata.",
+):
+    return [
+        "--product",
+        product,
+        "--ux",
+        ux,
+        "--architecture",
+        architecture,
+        "--reliability",
+        reliability,
+        "--security",
+        security,
+    ]
+
+
+def set_acceptance(repo, relative_plan, **kwargs):
+    return run_manager(
+        "acceptance-set",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        *acceptance_args(**kwargs),
+    )
+
+
+def fill_plan_details(plan_path):
+    path = Path(plan_path)
+    text = path.read_text()
+    replacements = {
+        "- Define in-scope work.\n- Define out-of-scope work.": "- Implement the requested lifecycle behavior.\n- Keep unrelated repository behavior out of scope.",
+        "- Add relevant product, architecture, reliability, security, or delivery constraints.": "- Preserve existing command semantics unless this eval explicitly changes them.\n- Keep all validation evidence in repository-local files.",
+        "1. Add the first concrete step.\n2. Add the next concrete step.": "1. Prepare the target plan state.\n2. Run the lifecycle command under test.\n3. Verify the command result and persisted files.",
+        "1. Add the first concrete step.\n2. Add the next step.": "1. Prepare the target plan state.\n2. Run the lifecycle command under test.\n3. Verify the command result and persisted files.",
+        "- Describe how the work will be verified.": "- Run the relevant eval command and inspect generated Markdown and JSON state.",
+    }
+    for before, after in replacements.items():
+        text = text.replace(before, after)
+    path.write_text(text)
 
 
 def test_empty_repo_init(tmp_root):
@@ -306,6 +353,7 @@ def test_closed_loop_plan(tmp_root):
         "Validate durable knowledge closure",
     )
     plan_path = Path(plan_result["plan"])
+    fill_plan_details(plan_path)
     relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
     fact = "Install mode must distinguish local and global skill destinations"
     run_manager(
@@ -319,7 +367,7 @@ def test_closed_loop_plan(tmp_root):
         "--destination",
         "docs/PRODUCT_SENSE.md",
     )
-    run_manager(
+    open_knowledge_close = run_manager(
         "plan-close",
         "--repo",
         str(repo),
@@ -329,6 +377,8 @@ def test_closed_loop_plan(tmp_root):
         "done",
         expect_success=False,
     )
+    if open_knowledge_close.get("reason") != "acceptance-contract-not-ready":
+        raise AssertionError("plan-close should return structured acceptance-contract-not-ready JSON before acceptance")
     run_manager(
         "knowledge-mark-written",
         "--repo",
@@ -354,7 +404,8 @@ def test_closed_loop_plan(tmp_root):
         "--append",
     )
     assert_contains(repo, "docs/PRODUCT_SENSE.md", fact)
-    run_manager(
+    set_acceptance(repo, relative_plan)
+    no_score_close = run_manager(
         "plan-close",
         "--repo",
         str(repo),
@@ -364,6 +415,8 @@ def test_closed_loop_plan(tmp_root):
         "done",
         expect_success=False,
     )
+    if no_score_close.get("reason") != "quality-result-not-passing":
+        raise AssertionError("plan-close should return structured quality-result-not-passing JSON before scoring")
     failing_score = run_manager(
         "quality-score",
         "--repo",
@@ -381,9 +434,9 @@ def test_closed_loop_plan(tmp_root):
         "--security-data-handling",
         "8",
         "--architecture-note",
-        "Plan closure needs a deterministic quality gate before handoff",
+        "Plan closure review found architecture evidence below the required threshold.",
         *quality_note_args(
-            architecture="Plan closure needs a deterministic quality gate before handoff",
+            architecture="Plan closure review found architecture evidence below the required threshold.",
         ),
         expect_success=False,
     )
@@ -394,9 +447,9 @@ def test_closed_loop_plan(tmp_root):
         raise AssertionError("Failing quality score should keep a rework section")
     if "Improve Architecture and maintainability" not in plan_text_after_fail:
         raise AssertionError("Failing quality score should name the low dimension")
-    check_after_fail = run_manager("check", "--repo", str(repo), expect_success=False)
-    if check_after_fail["status"] != "fail":
-        raise AssertionError("Harness check should fail while an active plan has a failed quality gate")
+    check_after_fail = run_manager("check", "--repo", str(repo))
+    if check_after_fail["status"] != "pass":
+        raise AssertionError("Active plan check should require acceptance readiness, not a passing post-implementation score")
     passing_score = run_manager(
         "quality-score",
         "--repo",
@@ -414,8 +467,8 @@ def test_closed_loop_plan(tmp_root):
         "--security-data-handling",
         "8",
         *quality_note_args(
-            product="Requested behavior is complete",
-            architecture="Plan closure now has a deterministic quality gate",
+            product="Requested behavior was validated by the closed-loop eval command.",
+            architecture="Plan closure architecture was reviewed in plan sidecar files.",
         ),
     )
     if passing_score["status"] != "pass":
@@ -465,6 +518,7 @@ def test_closed_loop_plan(tmp_root):
         "Validate id-based durable knowledge closure",
     )
     id_plan_path = Path(id_plan_result["plan"])
+    fill_plan_details(id_plan_path)
     id_relative_plan = str(id_plan_path.resolve().relative_to(repo.resolve()))
     id_fact = "Runtime input is owned by the terminal runner and core game logic remains independent of terminal packages"
     log_result = run_manager(
@@ -495,6 +549,7 @@ def test_closed_loop_plan(tmp_root):
         "--evidence-file",
         str(evidence_file),
     )
+    set_acceptance(repo, id_relative_plan)
     run_manager(
         "quality-score",
         "--repo",
@@ -590,7 +645,9 @@ def test_phase_continuity_workstream(tmp_root):
         "Complete Local Workbench Phase 1",
     )
     plan_path = Path(plan_result["plan"])
+    fill_plan_details(plan_path)
     relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    set_acceptance(repo, relative_plan)
     run_manager(
         "quality-score",
         "--repo",
@@ -608,8 +665,8 @@ def test_phase_continuity_workstream(tmp_root):
         "--security-data-handling",
         "8",
         *quality_note_args(
-            product="Phase 1 plan state was validated.",
-            architecture="Workstream continuity was validated.",
+            product="Phase 1 plan state was validated by the eval command.",
+            architecture="Workstream continuity was inspected in docs/exec-plans/workstreams.md.",
         ),
     )
     close_without_continuity = run_manager(
@@ -622,8 +679,8 @@ def test_phase_continuity_workstream(tmp_root):
         "Phase 1 done",
         expect_success=False,
     )
-    if close_without_continuity:
-        raise AssertionError("plan-close should not produce JSON when phase continuity blocks closure")
+    if close_without_continuity.get("reason") != "phase-continuity-incomplete":
+        raise AssertionError("plan-close should return structured phase-continuity-incomplete JSON")
     check_without_continuity = run_manager("check", "--repo", str(repo), expect_success=False)
     issue_codes = {issue["code"] for issue in check_without_continuity["issues"]}
     if "phase-mode-not-declared" not in issue_codes:
@@ -660,8 +717,8 @@ def test_phase_continuity_workstream(tmp_root):
         "Phase 1 done",
         expect_success=False,
     )
-    if close_without_workstream:
-        raise AssertionError("plan-close should not allow a workstreams continuation without a ledger entry")
+    if close_without_workstream.get("reason") != "phase-continuity-incomplete":
+        raise AssertionError("plan-close should return structured phase-continuity-incomplete JSON for missing workstream ledger")
     run_manager(
         "workstream-upsert",
         "--repo",
@@ -723,7 +780,9 @@ def test_plan_path_canonicalization(tmp_root):
         "Close a plan when repo and plan paths use different filesystem spellings",
     )
     plan_path = Path(plan_result["plan"])
+    fill_plan_details(plan_path)
     relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    set_acceptance(repo, relative_plan)
     run_manager(
         "quality-score",
         "--repo",
@@ -741,7 +800,7 @@ def test_plan_path_canonicalization(tmp_root):
         "--security-data-handling",
         "8",
         *quality_note_args(
-            architecture="Canonical plan path normalization was validated.",
+            architecture="Canonical plan path normalization was validated by file path inspection.",
         ),
     )
     run_manager(
@@ -807,6 +866,7 @@ def test_defect_recovery_loop(tmp_root):
         "Validate defect recovery when Snake tail-cell collision behavior fails",
     )
     plan_path = Path(plan_result["plan"])
+    fill_plan_details(plan_path)
     relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
     defect_summary = (
         "Snake marks game over when the head moves into the current tail cell during a non-eating tick"
@@ -829,11 +889,12 @@ def test_defect_recovery_loop(tmp_root):
     plan_text = plan_path.read_text()
     if "## Defects To Resolve" not in plan_text or defect_id not in plan_text:
         raise AssertionError("defect-log should record the open defect in the plan")
-    if "Status: fail" not in plan_text:
-        raise AssertionError("defect-log should force the quality gate to fail")
+    if "Status: pending" not in plan_text:
+        raise AssertionError("defect-log should invalidate any existing quality result")
     if "Resolve all open defects" not in plan_text:
         raise AssertionError("defect-log should turn the bug into rework input")
 
+    set_acceptance(repo, relative_plan)
     score_with_open_defect = run_manager(
         "quality-score",
         "--repo",
@@ -851,8 +912,8 @@ def test_defect_recovery_loop(tmp_root):
         "--security-data-handling",
         "10",
         *quality_note_args(
-            product="Open Snake defect remains unresolved.",
-            reliability="Open defect must block scoring despite high numeric values.",
+            product="Open Snake defect remains unresolved in go test evidence.",
+            reliability="Open defect blocking was validated by the eval command.",
         ),
         expect_success=False,
     )
@@ -872,8 +933,8 @@ def test_defect_recovery_loop(tmp_root):
         "Should not close with open defects",
         expect_success=False,
     )
-    if close_with_open_defect:
-        raise AssertionError("plan-close should not close while defects are open")
+    if close_with_open_defect.get("reason") != "open-defects":
+        raise AssertionError("plan-close should return structured open-defects JSON")
 
     run_manager(
         "defect-resolve",
@@ -949,6 +1010,7 @@ def test_quality_score_requires_notes(tmp_root):
         "Validate quality-score evidence notes are required",
     )
     relative_plan = str(Path(plan_result["plan"]).resolve().relative_to(repo.resolve()))
+    set_acceptance(repo, relative_plan)
     missing_notes = run_manager(
         "quality-score",
         "--repo",
@@ -992,11 +1054,11 @@ def test_quality_score_requires_notes(tmp_root):
         "--security-data-handling",
         "9",
         *quality_note_args(
-            product="Product assertions were checked.",
-            ux="User workflow evidence was checked.",
-            architecture="Architecture evidence was checked.",
+            product="Product assertions were checked by the eval command.",
+            ux="User workflow evidence was reviewed in the generated plan.",
+            architecture="Architecture evidence was inspected in plan files.",
             reliability="Validation command evidence was checked.",
-            security="Security evidence was checked.",
+            security="Security evidence was reviewed in generated metadata files.",
         ),
     )
     if passing_score["status"] != "pass":
@@ -1023,6 +1085,7 @@ def test_knowledge_evidence_verbatim(tmp_root):
         "Validate durable knowledge evidence must be exact destination text",
     )
     plan_path = Path(plan_result["plan"])
+    fill_plan_details(plan_path)
     relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
     fact = "Snake non-growth movement may enter the current tail cell because the tail leaves during the same tick"
     log_result = run_manager(
@@ -1077,6 +1140,321 @@ def test_knowledge_evidence_verbatim(tmp_root):
         raise AssertionError("Exact destination evidence should close the knowledge item")
     if f"| evidence: {exact_evidence}" not in plan_text:
         raise AssertionError("Closed knowledge item should record the exact verification evidence")
+
+
+def test_structured_plan_sidecar_and_acceptance(tmp_root):
+    repo = tmp_root / "structured-plan-repo"
+    repo.mkdir()
+    answers = tmp_root / "structured-answers.json"
+    write_answers(answers, project_name="structured-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "structured-sidecar",
+        "--goal",
+        "Validate structured sidecar creation and acceptance readiness",
+    )
+    plan_path = Path(plan_result["plan"])
+    sidecar_path = plan_path.with_suffix(".json")
+    if not sidecar_path.exists():
+        raise AssertionError("plan-start should create a JSON sidecar")
+    state = json.loads(sidecar_path.read_text())
+    if state["acceptance_contract"]["status"] != "draft":
+        raise AssertionError("new plan sidecar should start with draft acceptance contract")
+    if "## Acceptance Contract" not in plan_path.read_text() or "## Quality Result" not in plan_path.read_text():
+        raise AssertionError("new plan markdown should render acceptance and quality sections")
+
+    relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    check_draft = run_manager("check", "--repo", str(repo), expect_success=False)
+    if "acceptance-contract-not-ready" not in {issue["code"] for issue in check_draft["issues"]}:
+        raise AssertionError("active check should require ready acceptance contract")
+
+    generic = run_manager(
+        "acceptance-set",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product",
+        "Confirm requested behavior is complete.",
+        "--ux",
+        "Confirm requested behavior is complete.",
+        "--architecture",
+        "Confirm requested behavior is complete.",
+        "--reliability",
+        "Confirm requested behavior is complete.",
+        "--security",
+        "Confirm requested behavior is complete.",
+        expect_success=False,
+    )
+    if generic["reason"] != "acceptance-criteria-not-specific":
+        raise AssertionError("acceptance-set should reject generic template criteria")
+
+    ready = set_acceptance(repo, relative_plan)
+    if ready["status"] != "ready" or not ready["criteria_fingerprint"]:
+        raise AssertionError("acceptance-set should mark the contract ready with a fingerprint")
+    check_ready = run_manager("check", "--repo", str(repo))
+    if check_ready["status"] != "pass":
+        raise AssertionError("active check should pass with ready acceptance contract and no open defects")
+
+
+def test_quality_score_requires_ready_acceptance(tmp_root):
+    repo = tmp_root / "quality-contract-repo"
+    repo.mkdir()
+    answers = tmp_root / "quality-contract-answers.json"
+    write_answers(answers, project_name="quality-contract-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "quality-contract",
+        "--goal",
+        "Validate quality-score blocks before acceptance is ready",
+    )
+    relative_plan = str(Path(plan_result["plan"]).resolve().relative_to(repo.resolve()))
+    blocked = run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "8",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+        *quality_note_args(),
+        expect_success=False,
+    )
+    if blocked["reason"] != "acceptance-contract-not-ready":
+        raise AssertionError("quality-score should require a ready acceptance contract before scoring")
+
+
+def test_plan_close_rejects_template_placeholders(tmp_root):
+    repo = tmp_root / "placeholder-close-repo"
+    repo.mkdir()
+    answers = tmp_root / "placeholder-close-answers.json"
+    write_answers(answers, project_name="placeholder-close-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "placeholder-close",
+        "--goal",
+        "Validate plan-close rejects unresolved starter placeholders",
+    )
+    plan_path = Path(plan_result["plan"])
+    relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    set_acceptance(repo, relative_plan)
+    run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "8",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+        *quality_note_args(),
+    )
+    blocked = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Should reject placeholders",
+        expect_success=False,
+    )
+    if blocked.get("reason") != "plan-placeholders-unresolved":
+        raise AssertionError("plan-close should return structured plan-placeholders-unresolved JSON")
+    if not plan_path.exists():
+        raise AssertionError("plan-close should leave the active plan in place when placeholders remain")
+
+
+def test_plan_close_returns_open_knowledge_json(tmp_root):
+    repo = tmp_root / "open-knowledge-close-repo"
+    repo.mkdir()
+    answers = tmp_root / "open-knowledge-close-answers.json"
+    write_answers(answers, project_name="open-knowledge-close-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "open-knowledge-close",
+        "--goal",
+        "Validate structured close output for open durable knowledge",
+    )
+    plan_path = Path(plan_result["plan"])
+    fill_plan_details(plan_path)
+    relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    set_acceptance(repo, relative_plan)
+    fact = "Structured plan-close output should identify open durable knowledge items"
+    run_manager(
+        "knowledge-log",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--fact",
+        fact,
+        "--destination",
+        "docs/QUALITY_SCORE.md",
+    )
+    run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "8",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+        *quality_note_args(),
+    )
+    blocked = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Should reject open knowledge",
+        expect_success=False,
+    )
+    if blocked.get("reason") != "open-durable-knowledge":
+        raise AssertionError("plan-close should return structured open-durable-knowledge JSON")
+    if fact not in "\n".join(blocked.get("details", {}).get("open_items", [])):
+        raise AssertionError("structured open knowledge JSON should include the blocked item")
+
+
+def test_plan_close_moves_sidecar_and_rejects_stale_score(tmp_root):
+    repo = tmp_root / "stale-score-repo"
+    repo.mkdir()
+    answers = tmp_root / "stale-score-answers.json"
+    write_answers(answers, project_name="stale-score-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "stale-score",
+        "--goal",
+        "Validate plan-close rejects stale fingerprints and moves sidecars",
+    )
+    plan_path = Path(plan_result["plan"])
+    fill_plan_details(plan_path)
+    relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    set_acceptance(repo, relative_plan)
+    run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "8",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+        *quality_note_args(),
+    )
+    state_path = plan_path.with_suffix(".json")
+    state = json.loads(state_path.read_text())
+    state["acceptance_contract"]["criteria"]["product_correctness"] = "A changed product criterion makes the previous score stale."
+    state_path.write_text(json.dumps(state, indent=2) + "\n")
+    stale_close = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Should reject stale score",
+        expect_success=False,
+    )
+    if stale_close.get("reason") != "acceptance-fingerprint-stale":
+        raise AssertionError("plan-close should return structured acceptance-fingerprint-stale JSON")
+
+    set_acceptance(
+        repo,
+        relative_plan,
+        product="The stale score plan closes only after rescoring the changed product criterion.",
+    )
+    run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "8",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+        *quality_note_args(product="Changed acceptance criterion was rescored with eval command evidence."),
+    )
+    close_result = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Closed after rescoring changed acceptance contract.",
+    )
+    if close_result["status"] != "closed":
+        raise AssertionError("plan-close should close after fresh passing score")
+    if plan_path.exists() or state_path.exists():
+        raise AssertionError("plan-close should remove active markdown and sidecar")
+    completed_plan = repo / "docs" / "exec-plans" / "completed" / plan_path.name
+    completed_sidecar = completed_plan.with_suffix(".json")
+    if not completed_plan.exists() or not completed_sidecar.exists():
+        raise AssertionError("plan-close should move markdown and sidecar to completed")
+    completed_check = run_manager("check", "--repo", str(repo))
+    if completed_check["status"] != "pass":
+        raise AssertionError("completed structured plan should satisfy check")
 
 
 def test_evidence_prune_generated_artifacts(tmp_root):
@@ -1349,6 +1727,11 @@ EVALS = [
     ("defect-recovery-loop", test_defect_recovery_loop),
     ("quality-score-requires-notes", test_quality_score_requires_notes),
     ("knowledge-evidence-verbatim", test_knowledge_evidence_verbatim),
+    ("structured-plan-sidecar-and-acceptance", test_structured_plan_sidecar_and_acceptance),
+    ("quality-score-requires-ready-acceptance", test_quality_score_requires_ready_acceptance),
+    ("plan-close-rejects-template-placeholders", test_plan_close_rejects_template_placeholders),
+    ("plan-close-returns-open-knowledge-json", test_plan_close_returns_open_knowledge_json),
+    ("plan-close-moves-sidecar-and-rejects-stale-score", test_plan_close_moves_sidecar_and_rejects_stale_score),
     ("evidence-prune-generated-artifacts", test_evidence_prune_generated_artifacts),
     ("eval-report-shape", test_eval_report_shape),
     ("preserve-unmanaged-docs", test_preserve_unmanaged_docs),
