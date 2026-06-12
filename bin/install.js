@@ -5,8 +5,7 @@ const os = require("os");
 const path = require("path");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
-const BUNDLE_NAME = "harness-engine-plugin";
-const BUNDLE_ENTRIES = [".codex-plugin", "skills"];
+const SKILL_NAME = "harness-engine";
 
 function printHelp() {
   console.log(`harness-engine
@@ -19,7 +18,7 @@ Options:
   --local         Install into <cwd>/.codex/skills
   --global        Install into \${CODEX_HOME:-~/.codex}/skills
   --path <dir>    Install into a custom skills directory
-  --force         Replace an existing installed bundle
+  --force         Replace an existing installed skill
   -h, --help      Show this help text
 `);
 }
@@ -98,25 +97,10 @@ function copyDir(sourceDir, targetDir) {
   }
 }
 
-function copyEntry(sourcePath, targetPath) {
-  const stat = fs.lstatSync(sourcePath);
-  if (stat.isDirectory()) {
-    copyDir(sourcePath, targetPath);
-  } else if (stat.isSymbolicLink()) {
-    fs.symlinkSync(fs.readlinkSync(sourcePath), targetPath);
-  } else {
-    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-    fs.copyFileSync(sourcePath, targetPath);
-    fs.chmodSync(targetPath, fs.statSync(sourcePath).mode);
-  }
-}
-
-function assertBundleSources() {
-  for (const entry of BUNDLE_ENTRIES) {
-    const sourcePath = path.join(PACKAGE_ROOT, entry);
-    if (!fs.existsSync(sourcePath)) {
-      throw new Error(`Bundled plugin entry not found: ${sourcePath}`);
-    }
+function assertSkillSource() {
+  const sourcePath = path.join(PACKAGE_ROOT, "skills", SKILL_NAME);
+  if (!fs.existsSync(sourcePath)) {
+    throw new Error(`Bundled skill not found: ${sourcePath}`);
   }
 }
 
@@ -132,24 +116,13 @@ function removeIfExists(targetPath, force, label) {
   fs.rmSync(targetPath, { recursive: true, force: true });
 }
 
-function installBundle(destinationDir, force) {
-  assertBundleSources();
+function installSkill(destinationDir, force) {
+  assertSkillSource();
   fs.mkdirSync(destinationDir, { recursive: true });
-  const bundleTargetDir = path.join(destinationDir, BUNDLE_NAME);
-  removeIfExists(bundleTargetDir, force, "Plugin bundle");
-
-  fs.mkdirSync(bundleTargetDir, { recursive: true });
-  for (const entry of BUNDLE_ENTRIES) {
-    copyEntry(path.join(PACKAGE_ROOT, entry), path.join(bundleTargetDir, entry));
-  }
-
-  // Compatibility: older users invoke $harness-engine from a normal skills directory.
-  // Keep a top-level skill copy in place while the plugin root carries the bundle.
-  const compatTarget = path.join(destinationDir, "harness-engine");
-  removeIfExists(compatTarget, force, "Compatibility skill");
-  copyDir(path.join(PACKAGE_ROOT, "skills", "harness-engine"), compatTarget);
-
-  return bundleTargetDir;
+  const skillTarget = path.join(destinationDir, SKILL_NAME);
+  removeIfExists(skillTarget, force, "Skill");
+  copyDir(path.join(PACKAGE_ROOT, "skills", SKILL_NAME), skillTarget);
+  return skillTarget;
 }
 
 function main() {
@@ -170,7 +143,7 @@ function main() {
   const destinationDir = resolveSkillsDir(args.mode, args.customPath);
 
   if (args.command === "where") {
-    console.log(path.join(destinationDir, BUNDLE_NAME));
+    console.log(path.join(destinationDir, SKILL_NAME));
     return;
   }
 
@@ -181,8 +154,8 @@ function main() {
   }
 
   try {
-    const installedPath = installBundle(destinationDir, args.force);
-    console.log(`Installed ${BUNDLE_NAME} plugin bundle to ${installedPath}`);
+    const installedPath = installSkill(destinationDir, args.force);
+    console.log(`Installed ${SKILL_NAME} skill to ${installedPath}`);
     console.log("Invoke it in Codex with $harness-engine.");
   } catch (error) {
     console.error(`Install failed: ${error.message}`);

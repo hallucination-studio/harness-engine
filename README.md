@@ -74,13 +74,13 @@ Install into a custom skills directory:
 npx @hallucination-studio/harness-engine install --path /path/to/skills
 ```
 
-Replace an existing installed plugin bundle:
+Replace an existing installed skill:
 
 ```bash
 npx @hallucination-studio/harness-engine install --local --force
 ```
 
-Show where the plugin bundle would be installed:
+Show where the skill would be installed:
 
 ```bash
 npx @hallucination-studio/harness-engine where --local
@@ -104,8 +104,8 @@ prose with its concrete product style before substantial UI work.
 
 ## Update An Installed Skill Package
 
-The `npx` installer installs or replaces the Codex plugin bundle and compatibility skill entries.
-To update an already installed bundle, rerun `install` with `--force` in the same install location.
+The `npx` installer installs or replaces the `harness-engine` Codex skill.
+To update an already installed skill, rerun `install` with `--force` in the same install location.
 
 Replace the local skill install:
 

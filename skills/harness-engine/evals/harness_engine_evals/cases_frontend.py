@@ -197,16 +197,15 @@ def test_pack_excludes_external_design_dependency(tmp_root):
     pack_data = json.loads(result.stdout[json_start:].strip())
     files = {item["path"] for item in pack_data[0]["files"]}
     for required_path in [
-        ".codex-plugin/plugin.json",
         "skills/harness-engine/SKILL.md",
     ]:
         if required_path not in files:
             raise AssertionError(f"npm pack should include {required_path}")
     forbidden_prefixes = [
+        ".codex-plugin/",
         "skills/google-design-style/",
         "third_party/",
     ]
     for file_path in files:
         if any(file_path.startswith(prefix) for prefix in forbidden_prefixes):
             raise AssertionError(f"npm pack should not include external design source or adapter: {file_path}")
-
