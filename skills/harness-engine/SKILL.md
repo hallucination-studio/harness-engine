@@ -1,11 +1,13 @@
 ---
 name: harness-engine
-description: Initialize or refresh an advanced harness-engineering repository shape for Codex-driven projects. Use when Codex needs to analyze a repository, ask the human to confirm high-impact product and architecture facts, and then run the harness-engine init workflow to create or reconcile AGENTS.md, architecture docs, policy docs, plan folders, reference folders, and SOP-backed starter files.
+description: Initialize, refresh, and operate an advanced harness-engineering repository lifecycle for Codex-driven projects. Use when Codex needs to create or reconcile harness docs, or when work inside a harness-managed repository will change code, docs, configuration, tests, dependencies, build/release scripts, generated templates, runtime behavior, migrations, cleanup policy, or other durable repository state.
 ---
 
 # Harness Engine
 
 Run the packaged script to inspect the target repository before editing files. Use the generated analysis to decide what to ask the human, what durable knowledge is missing from the repo, and which execution-plan and SOP files must be created or reconciled.
+
+In a harness-managed repository, default every repository-mutating request into the harness lifecycle. Repository-mutating work includes code, docs, configuration, tests, dependencies, build/release scripts, generated templates, runtime behavior, migrations, cleanup, and fixes from review or user feedback. The only no-plan exceptions are pure question answering, read-only investigation, showing command output, and status reporting with no file changes. If an investigation turns into editing files, enter the lifecycle before editing.
 
 ## Workflow
 
@@ -16,7 +18,7 @@ Run the packaged script to inspect the target repository before editing files. U
 5. Run `python3 scripts/manage_harness.py sample-answers --analysis <analysis.json> --output <answers.json>`.
 6. Fill the placeholders in `answers.json` from the repository and the human's confirmed answers.
 7. Run `python3 scripts/manage_harness.py init --repo <target-repo> --answers <answers.json>`. This is the single workspace entrypoint: it creates a new harness when none exists, and reconciles a managed or partial harness when managed harness files are already present. Reconcile refreshes managed files, backfills newly introduced managed files, and preserves unmanaged user files. Pass `--force` only with explicit user approval.
-8. If the task is multi-step, run `python3 scripts/manage_harness.py plan-start --repo <target-repo> --slug <task-name> --goal "<goal>"`.
+8. For any repository-mutating task, run `python3 scripts/manage_harness.py plan-start --repo <target-repo> --slug <task-name> --goal "<goal>"` unless an active plan already covers the exact work. Small changes may use a lightweight plan, but they still require acceptance, validation, quality scoring, plan close, and check.
 9. Before implementation, run `python3 scripts/manage_harness.py acceptance-set --repo <target-repo> --plan <plan-file> --product "<product criterion>" --ux "<UX criterion>" --architecture "<architecture criterion>" --reliability "<reliability criterion>" --security "<security criterion>"`. Criteria must be concrete to the task; generic templates are rejected.
 10. If you learn durable facts during the work, run `python3 scripts/manage_harness.py knowledge-log --repo <target-repo> --plan <plan-file> --fact "<fact>" --destination <durable-doc>` and keep the returned `id`. Use `--fact-file <file>` when the fact contains shell-sensitive characters.
 11. Before closing the task, write those facts into their durable docs.
@@ -30,7 +32,7 @@ Run the packaged script to inspect the target repository before editing files. U
 19. Close the plan with `python3 scripts/manage_harness.py plan-close --repo <target-repo> --plan <plan-file> --summary "<summary>"`.
 20. Before handoff, run `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo <target-repo>` from an installed target repository.
 21. To review stale generated evidence, run `python3 scripts/manage_harness.py evidence-prune --repo <target-repo>` first; it is dry-run by default. Add `--apply` only after checking the candidate list.
-22. To clean transient harness runtime files or remove already committed runtime files from the remote, run `python3 scripts/manage_harness.py clean --repo <target-repo>` first; it is dry-run by default. Add `--apply` to clean local runtime state, update `.gitignore`, and stage `git rm --cached` removals, then commit and push.
+22. To clean transient harness runtime files or remove already committed runtime files from the remote, run `python3 scripts/manage_harness.py clean --repo <target-repo>` first; it is dry-run by default. Add `--apply` to clean local runtime state, update `.gitignore`, and stage `git rm --cached` removals, then commit and push. Clean is limited to local skill installs and generated evidence; execution plans, sidecars, and workstreams are durable project state.
 23. After changing this skill, run `python3 evals/run_evals.py` and iterate until it passes.
 
 ## Reading Order
@@ -39,7 +41,7 @@ Run the packaged script to inspect the target repository before editing files. U
 - Read [references/file-map.md](references/file-map.md) when deciding which generated file to edit.
 - Read [references/question-catalog.md](references/question-catalog.md) when the analysis surfaces ambiguous product, security, reliability, or frontend facts.
 - Read [references/knowledge-capture.md](references/knowledge-capture.md) when you discover facts that should survive chat history.
-- Read [references/exec-plans.md](references/exec-plans.md) before planning or updating any multi-step work.
+- Read [references/exec-plans.md](references/exec-plans.md) before planning or updating any repository-mutating work.
 - Read [references/sop-index.md](references/sop-index.md) to choose the right SOP for architecture, UI validation, observability, or knowledge capture work.
 - Read [references/template-policy.md](references/template-policy.md) before overwriting existing files.
 - Read [references/evaluation-loop.md](references/evaluation-loop.md) before changing the skill, templates, scripts, or policy references.
@@ -54,7 +56,7 @@ Run the packaged script to inspect the target repository before editing files. U
 - Do not overwrite existing files unless the human asked for it or you pass `--force`.
 - Treat the generated files as starting points. After generation, tighten them with repository-specific details instead of leaving placeholders behind.
 - Before plan close, replace or remove task placeholders such as "Define in-scope work", "Add the first concrete step", "Describe how the work will be verified", and any ad hoc durable-knowledge TODOs.
-- Treat `docs/exec-plans/` as required state for multi-step work, not optional notes.
+- Treat `docs/exec-plans/` as required durable state for repository-mutating work, not optional notes.
 - Read `docs/exec-plans/workstreams.md` before resuming interrupted feature, refactor, reliability, security, frontend, or cleanup work.
 - Treat `docs/sops/` as mechanical operating procedures, not background reading.
 - When you answer a question using facts that are not yet in the repo but should be reusable, write them into a durable doc before finishing.
@@ -67,7 +69,7 @@ Run the packaged script to inspect the target repository before editing files. U
 - Use `plan-close` as the final guardrail so plan state, quality score, and durable docs stay synchronized. When blocked, it returns JSON with `status`, `reason`, `message`, and `details`; use that output as the next repair input.
 - Use `check` as the local handoff guardrail for user repositories. Active plans require ready Acceptance Contracts; completed plans require passing Quality Results scored against the current contract fingerprint.
 - Use `evidence-prune` as a cleanup preview for old unreferenced files under `docs/generated/`; it never deletes unless `--apply` is present.
-- Use `clean` when `.codex/skills/`, `docs/generated/`, or stale `docs/exec-plans/active|completed/` files need cleanup or were already committed. It never changes files or the git index unless `--apply` is present.
+- Use `clean` when `.codex/skills/` or `docs/generated/` files need cleanup or were already committed. It never changes files or the git index unless `--apply` is present, and it must not remove execution plans, sidecars, or workstreams.
 - Run `python3 evals/run_evals.py` after skill changes, read the structured report, and treat per-case failures as iteration input.
 - Do not add CI to user repositories unless the human explicitly asks for it.
 
@@ -81,8 +83,8 @@ For frontend repositories, `docs/FRONTEND.md` records product positioning, reque
 
 - Keep `AGENTS.md` short and routing-oriented.
 - Keep durable knowledge in repo docs, not in chat-only explanations.
-- Keep plans under `docs/exec-plans/active/` and move finished plans to `docs/exec-plans/completed/`.
-- Keep resumable workstreams in `docs/exec-plans/workstreams.md`.
+- Keep plans under `docs/exec-plans/active/` and move finished plans to `docs/exec-plans/completed/`; plan Markdown and JSON sidecars are version-controlled project state.
+- Keep resumable workstreams in `docs/exec-plans/workstreams.md`; this is version-controlled project state.
 - Keep generated evidence under `docs/generated/`; it is local runtime output and is ignored by git unless the human intentionally promotes a specific artifact into tracked docs.
 - Keep external, model-friendly references under `docs/references/`.
 - Keep SOPs explicit and task-triggered so the next agent can follow the same path mechanically.

@@ -37,14 +37,10 @@ GITIGNORE_ENTRIES = [
 ]
 CLEAN_INIT_DIRS = [
     "docs/generated",
-    "docs/exec-plans/active",
-    "docs/exec-plans/completed",
 ]
 GIT_CLEAN_PATHS = [
     ".codex/skills",
     "docs/generated",
-    "docs/exec-plans/active",
-    "docs/exec-plans/completed",
 ]
 PLAN_TEMPLATE = """# Execution Plan: {title}
 
@@ -132,19 +128,52 @@ Read this file first, then follow the linked docs.
 ## Routing
 
 - Read `ARCHITECTURE.md` before changing boundaries, data flow, or integrations.
-- Read `docs/PLANS.md` before starting multi-step execution work.
-- Read `docs/exec-plans/workstreams.md` before resuming interrupted feature, refactor, reliability, or cleanup work.
-- Read `docs/exec-plans/active/` before resuming in-flight work, and create a plan there for new multi-step work.
+- Read `docs/PLANS.md` before any repository change. Every code, doc, config, test, dependency, build, release, or runtime-behavior change needs an execution plan.
+- Read `docs/exec-plans/workstreams.md` before resuming interrupted feature, refactor, reliability, security, frontend, or cleanup work.
+- Read `docs/exec-plans/active/` before changing files; use `plan-start` when no active plan covers the requested repository change.
 - Read `docs/QUALITY_SCORE.md` before evaluating tradeoffs or readiness.
 - Read `docs/RELIABILITY.md` for runtime validation and failure handling.
-- Read `docs/SECURITY.md` before touching auth, secrets, or sensitive data.
-- Read `docs/FRONTEND.md` for UI or terminal interface changes.
+- Read `docs/SECURITY.md` before touching auth, secrets, permissions, or sensitive data.
+- Read `docs/FRONTEND.md` and `docs/DESIGN.md` for UI, terminal interface, layout, visual-state, canvas, or interaction changes.
 - Read the matching file in `docs/sops/` before architecture changes, UI validation, observability work, evidence-first evals, or knowledge capture.
+
+## Harness Task Intake
+
+Default rule: any request that changes repository files or behavior goes through the harness lifecycle. This includes code, docs, configuration, tests, dependencies, generated templates, build/release scripts, runtime behavior, migrations, cleanup, and fixes found during review. Start or reuse an execution plan, set acceptance before implementation, validate with evidence, run `quality-score`, close the plan, then run `check`.
+
+No-plan exceptions are narrow: pure question answering, read-only investigation, showing command output, or status reporting with no file changes. If the work moves from investigation to editing files, create or reuse an active plan before editing.
+
+| Request Type | Read First | SOP | Minimum Evidence |
+| --- | --- | --- | --- |
+| New feature or product behavior | `docs/PRODUCT_SENSE.md`, `docs/product-specs/`, `docs/PLANS.md` | `docs/sops/evidence-first-eval-loop.md` | Product assertions, workflow checks, tests or smoke evidence |
+| Bug, regression, or user-reported issue | `AGENTS.md` Issue Workflows, affected domain docs, `docs/PLANS.md` | Domain SOP from Issue Workflows | Reproduction, regression assertion, fix validation, defect log if confirmed |
+| Refactor, cleanup, or code organization | `ARCHITECTURE.md`, `docs/PLANS.md`, `docs/exec-plans/workstreams.md` | `docs/sops/layered-domain-architecture-setup.md` when boundaries change | Before/after behavior checks, boundary or dependency notes, compatibility evidence |
+| Frontend, UI, design, layout, terminal interface, visual state, or interaction | `docs/FRONTEND.md`, `docs/DESIGN.md`, `docs/QUALITY_SCORE.md` | `docs/sops/chrome-devtools-ui-validation-loop.md` and evidence-first eval loop | Browser or local-runtime evidence for workflows, states, and relevant viewports |
+| Tests, evals, fixtures, or validation harnesses | `docs/QUALITY_SCORE.md`, `docs/sops/evidence-first-eval-loop.md`, relevant product or architecture docs | `docs/sops/evidence-first-eval-loop.md` | Failing-before or coverage rationale, passing test/eval output, artifact paths when produced |
+| Documentation, policy, specs, or generated harness templates | `docs/PLANS.md`, affected docs, `docs/QUALITY_SCORE.md` | `docs/sops/encode-unseen-knowledge.md` when durable facts change | Doc diff review, link/path validation, generated-output or eval evidence when templates change |
+| Dependencies, tooling, package manager, or build system | `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md` | Local observability SOP when runtime behavior can change | Install/build/test output, lockfile or package diff, compatibility and rollback notes |
+| Build, release, deployment, or packaging | `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md` | `docs/sops/local-observability-feedback-loop.md` | Repeatable build/package output, smoke check, release-risk notes |
+| Configuration, environment, flags, secrets handling, or policy gates | `docs/SECURITY.md`, `docs/RELIABILITY.md`, `ARCHITECTURE.md` | Local observability SOP; security review rules | Config diff, secret-handling review, permission or failure-mode evidence |
+| Data, migrations, storage, cache, queues, or file formats | `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md` | Evidence-first eval loop | Fixtures or migration checks, rollback/compatibility evidence, data-loss risk notes |
+| Performance, reliability, observability, or operational behavior | `docs/RELIABILITY.md`, `ARCHITECTURE.md`, `docs/QUALITY_SCORE.md` | `docs/sops/local-observability-feedback-loop.md` | Baseline measurement, repeatable benchmark or smoke check, logs/traces, before/after evidence |
+| Security, privacy, auth, authorization, or sensitive data | `docs/SECURITY.md`, `ARCHITECTURE.md`, `docs/QUALITY_SCORE.md` | Evidence-first eval loop plus security review rules | Threat check, sensitive-data path, permission test, and secret-handling evidence |
+| Code review finding or user feedback that requires changes | Affected domain docs, `docs/PLANS.md`, `docs/QUALITY_SCORE.md` | Matching domain SOP | Finding reproduction or rationale, changed-file validation, defect log when it is a bug |
+
+For every repository change:
+
+- Inspect the relevant code path, runtime path, and user/operator workflow before editing.
+- Create or reuse an active plan with `plan-start`; keep plan scope lightweight for small changes, but do not skip the lifecycle.
+- Define a ready Acceptance Contract with `acceptance-set` before implementation.
+- Convert requirements, risks, or reported failures into assertions, tests, smoke checks, or review evidence.
+- Log confirmed defects or missing evidence with `defect-log`; unresolved defects must block `plan-close`, and scoring must be rerun after defects are resolved.
+- Run task-appropriate validation, then score with `quality-score` using concrete evidence notes for every dimension.
+- Close with `plan-close` only after validation, passing quality, resolved defects, and durable knowledge updates are complete.
+- Run `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo .` before handoff.
 
 ## Issue Workflows
 
 For any user-reported issue, classify the domain first, read the listed files, then reproduce,
-fix, and validate with evidence before judging the result.
+fix, and validate with evidence before judging the result. Issue handling is one branch of Harness Task Intake; if a fix or repository change is needed, the full plan, acceptance, quality, close, and check lifecycle applies.
 
 | Domain | Read First | Required Evidence |
 | --- | --- | --- |
@@ -156,15 +185,6 @@ fix, and validate with evidence before judging the result.
 | Security, privacy, auth, authorization, secrets, or sensitive data | `docs/SECURITY.md`, `ARCHITECTURE.md` | Threat check, sensitive-data path, permission test, and secret-handling evidence |
 | Performance, capacity, timeout, resource use, or availability | `docs/RELIABILITY.md`, `ARCHITECTURE.md`, `docs/sops/local-observability-feedback-loop.md` | Baseline measurement, repeatable benchmark or smoke check, and before/after evidence |
 
-For each issue:
-
-- Inspect the relevant code path, runtime path, and user/operator workflow.
-- If a code change is needed and no active plan exists, create one with `plan-start`.
-- Convert the issue into assertions, tests, smoke checks, or a regression case before changing code.
-- Define a ready Acceptance Contract with `acceptance-set` before implementation.
-- Log confirmed defects or missing evidence with `defect-log`; unresolved defects must block `plan-close`, and scoring must be rerun after defects are resolved.
-- Verify the fix against the same workflow and evidence type before claiming it is resolved.
-
 ## Repository Focus
 
 - Project: {project_name}
@@ -175,17 +195,18 @@ For each issue:
 ## Operating Rules
 
 - Keep durable decisions in repo docs, not only in chat.
-- Keep active plans in `docs/exec-plans/active/`.
-- Keep resumable feature, refactor, reliability, and cleanup work in `docs/exec-plans/workstreams.md`.
-- Move completed plans to `docs/exec-plans/completed/`.
+- Keep active plans in `docs/exec-plans/active/` and completed plans in `docs/exec-plans/completed/`; both the Markdown plans and JSON sidecars are version-controlled project state.
+- Keep resumable feature, refactor, reliability, security, frontend, and cleanup work in `docs/exec-plans/workstreams.md`.
 - Update plans during the work, not only at the end.
 - Define acceptance criteria with `acceptance-set` before implementation, then score completed work with `quality-score` before closing an execution plan.
 - If `quality-score` fails, treat `## Rework Required` as the next implementation input and do not close the plan.
 - Encode durable facts learned during execution into permanent docs before closing the task.
 - Before handoff, run the local harness check: `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo .`. Active plans must have ready Acceptance Contracts; completed plans must have passing Quality Results scored against the current contract.
-- Keep generated artifacts in `docs/generated/`.
+- Keep generated evidence and transient artifacts in `docs/generated/`; it is ignored by default unless intentionally promoted into tracked docs.
+- Keep local skill installs in `.codex/skills/`; they are ignored by default.
 - Keep external references in `docs/references/`.
 """,
+
     "ARCHITECTURE.md": """{marker}
 # Architecture
 
@@ -544,19 +565,26 @@ DOC_FILES = {
 
 ## Plan Lifecycle
 
+- Create or reuse an execution plan for every repository change: code, docs, configuration, tests, dependencies, build/release scripts, generated templates, runtime behavior, migrations, cleanup, and fixes found during review.
 - Put active execution plans in `docs/exec-plans/active/`.
 - Move completed plans to `docs/exec-plans/completed/`.
+- Commit active plans, completed plans, JSON sidecars, and `docs/exec-plans/workstreams.md` as durable project state.
 - Track resumable multi-plan workstreams in `docs/exec-plans/workstreams.md`.
 - Record cross-cutting follow-up work in `docs/exec-plans/tech-debt-tracker.md`.
 
 ## Authoring Rules
 
 - Keep plans concrete, testable, and scoped.
+- For small changes, keep the plan lightweight: narrow scope, short steps, and focused validation are fine, but the Acceptance Contract and Quality Result are still required.
 - Update plans during the work, not after the fact.
 - Link to specs, decisions, and validation artifacts when they exist.
 - Include a section for durable knowledge that must be written back into permanent docs.
 - Include phase continuity when a plan is part of a multi-phase feature, refactor, reliability, or cleanup effort.
 - Do not treat plans as the final home for product, architecture, or policy knowledge.
+
+## No-Plan Exceptions
+
+Only skip an execution plan for pure question answering, read-only investigation, showing command output, or status reporting with no file changes. If the work moves from investigation to editing files, create or reuse an active plan before editing.
 """,
     "docs/PRODUCT_SENSE.md": """{marker}
 # Product Sense
@@ -607,7 +635,7 @@ DOC_FILES = {
 ## Usage
 
 - Score changes by affected domain and layer.
-- Read `AGENTS.md` Issue Workflows and `docs/sops/evidence-first-eval-loop.md` before closing work that could regress product behavior, frontend layout, backend behavior, architecture boundaries, data safety, security, performance, or bug detection.
+- Read `AGENTS.md` Harness Task Intake, Issue Workflows, and `docs/sops/evidence-first-eval-loop.md` before closing repository-mutating work.
 - Document recurring weak spots and improvement themes here.
 """,
     "docs/RELIABILITY.md": """{marker}
@@ -662,7 +690,7 @@ Use this ledger to recover interrupted feature, refactor, reliability, security,
     "docs/exec-plans/active/README.md": """{marker}
 # Active Execution Plans
 
-Create one markdown file per in-flight multi-step task.
+Create one markdown file per in-flight repository change. A repository change includes code, docs, configuration, tests, dependencies, build/release scripts, generated templates, runtime behavior, migrations, cleanup, and fixes found during review.
 
 Suggested filename:
 
@@ -681,6 +709,8 @@ Minimum contents:
 - rework required
 - phase continuity
 - durable knowledge to capture
+
+Use a lightweight plan for small changes, but still set a ready Acceptance Contract, record a Quality Result, close the plan, and run the local harness check.
 """,
     "docs/exec-plans/active/_template.md": """{marker}
 # Execution Plan: <title>
@@ -826,14 +856,15 @@ Describe the desired first successful experience for a new user of {project_name
     "docs/sops/evidence-first-eval-loop.md": """{marker}
 # SOP: Evidence-First Eval Loop
 
-1. Convert product requirements into explicit product contract checks and write them with `acceptance-set` before implementation.
-2. Run deterministic validation before scoring: tests, API smoke checks, CLI checks, browser actions, and state assertions.
-3. Read the Issue Workflows in `AGENTS.md` and the domain docs named there before judging or fixing.
-4. For frontend work, capture browser evidence: screenshots, DOM/accessibility snapshots, responsive checks, and layout invariants.
-5. For backend, architecture, data, security, and performance work, capture the domain evidence named in `AGENTS.md`.
-6. Log every discovered bug or evidence gap with `defect-log` before running `quality-score`.
-7. Resolve defects only after fixes have passing evidence, then rerun validation and `quality-score`.
-8. Report per-case results, failed assertions, artifact paths, and recommended next actions to the user.
+1. Read Harness Task Intake in `AGENTS.md`; every repository-mutating change needs an active plan unless it is a documented no-plan exception.
+2. Convert product requirements into explicit product contract checks and write them with `acceptance-set` before implementation.
+3. Run deterministic validation before scoring: tests, API smoke checks, CLI checks, browser actions, and state assertions.
+4. Read the Issue Workflows in `AGENTS.md` and the domain docs named there before judging or fixing reported bugs.
+5. For frontend work, capture browser evidence: screenshots, DOM/accessibility snapshots, responsive checks, and layout invariants.
+6. For backend, architecture, data, security, and performance work, capture the domain evidence named in `AGENTS.md`.
+7. Log every discovered bug or evidence gap with `defect-log` before running `quality-score`.
+8. Resolve defects only after fixes have passing evidence, then rerun validation and `quality-score`.
+9. Report per-case results, failed assertions, artifact paths, and recommended next actions to the user.
 """,
 }
 
@@ -2914,7 +2945,7 @@ def analyze_repo(repo):
         "notes": [
             "Ask the human only the confirmations that the repository cannot answer safely.",
             "If unmanaged harness files already exist, preserve them unless the human explicitly requests replacement.",
-            "Create execution-plan state before expecting agents to keep multi-step work synchronized.",
+            "Create execution-plan state before expecting agents to keep repository-mutating work synchronized.",
             "Use SOPs to turn recurring architecture, UI, observability, and knowledge-capture work into mechanical loops.",
             "Write durable facts into permanent docs instead of leaving them trapped inside plans or chat history.",
         ],

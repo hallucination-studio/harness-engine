@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "plan_id": "plan-d5857d9c42",
+  "goal": "Make harness lifecycle the default for repository-mutating work and keep execution plans under version control.",
+  "created_at": "2026-06-12T02:41:14Z",
+  "updated_at": "2026-06-12T02:46:48Z",
+  "acceptance_contract": {
+    "status": "ready",
+    "criteria": {
+      "product_correctness": "Generated harness docs route every repository-mutating request through plan-start, acceptance-set, validation, quality-score, plan-close, and check, with only explicit read-only/no-file-change exceptions.",
+      "ux_operator_clarity": "AGENTS.md and references make the broad task intake easy for a future agent to follow without relying on issue or bug keywords.",
+      "architecture_maintainability": "The manager keeps execution plans, JSON sidecars, and workstreams as durable project state while restricting clean and .gitignore behavior to local runtime directories.",
+      "reliability_observability": "Eval coverage proves clean ignores plan state and generated docs include broad task intake for feature, bug, refactor, docs, dependency, UI, test, security, and performance work.",
+      "security_data_handling": "The lifecycle and clean changes do not introduce secret handling changes and continue to keep local skill installs and generated evidence out of version control by default."
+    },
+    "fingerprint": "3b6f29e4322d74bd"
+  },
+  "quality_result": {
+    "status": "pass",
+    "minimum": 8.0,
+    "average": 8.8,
+    "scored_at": "2026-06-12T02:46:35Z",
+    "criteria_fingerprint": "3b6f29e4322d74bd",
+    "dimensions": {
+      "product_correctness": {
+        "score": 9.0,
+        "evidence": "Generated AGENTS.md, PLANS.md, active plan README, and evidence-first SOP now route repository-mutating work through plan-start, acceptance-set, validation, quality-score, plan-close, and check; eval broad-task-intake-routes-repo-changes passed."
+      },
+      "ux_operator_clarity": {
+        "score": 9.0,
+        "evidence": "Harness Task Intake is a top-level AGENTS.md section with scenario routing, no-plan exceptions, and evidence requirements; empty-repo-init and broad-task-intake evals passed."
+      },
+      "architecture_maintainability": {
+        "score": 9.0,
+        "evidence": "CLEAN_INIT_DIRS and GIT_CLEAN_PATHS now include only docs/generated and .codex/skills respectively; clean eval preserves active/completed plans, JSON sidecars, and workstreams."
+      },
+      "reliability_observability": {
+        "score": 9.0,
+        "evidence": "python3 skills/harness-engine/evals/run_evals.py passed 23/23 cases, npm run smoke:install passed, and npm run pack:check passed."
+      },
+      "security_data_handling": {
+        "score": 8.0,
+        "evidence": "No secret-handling paths changed; version-control policy still ignores local skill installs and generated evidence while keeping durable plan state tracked."
+      }
+    }
+  },
+  "defects": [],
+  "knowledge_items": [],
+  "implementation_dirty_after_score": false,
+  "dirty_reasons": [],
+  "markdown_path": "/Users/murphy/code/github/harness-engine/docs/exec-plans/completed/2026-06-12-harness-default-intake.md"
+}

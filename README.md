@@ -16,10 +16,10 @@ ask for missing high-impact facts, create the harness files, and keep future wor
 - Provides a repository analyzer that detects language, package manager, frontend signals, existing harness files, missing execution-plan state, and missing SOPs.
 - Generates a short routing-style `AGENTS.md` plus durable system-of-record docs such as `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md`, and `docs/QUALITY_SCORE.md`.
 - Generates `docs/FRONTEND.md`, `docs/DESIGN.md`, and `docs/design-docs/` only when a frontend surface is detected.
-- Creates execution-plan folders for active and completed plans.
+- Creates version-controlled execution-plan folders for active and completed plans.
 - Adds SOPs for architecture setup, knowledge capture, local observability, and UI validation.
 - Reconciles managed harnesses through the same `init` flow, refreshing managed files and backfilling newly introduced managed files while preserving unmanaged docs.
-- Provides `clean` to remove transient harness runtime state, add `.gitignore` entries, and untrack already committed harness runtime files so a follow-up commit deletes them from the remote.
+- Provides `clean` to remove local skill installs and generated evidence, add `.gitignore` entries, and untrack already committed runtime artifacts so a follow-up commit deletes them from the remote.
 - Enforces a local harness check without assuming the user's project has CI.
 - Previews and optionally removes stale unreferenced generated evidence under `docs/generated/`.
 - Supports durable knowledge closure with stable knowledge IDs and evidence text, so permanent docs can use natural wording instead of duplicated checklist strings.
@@ -150,7 +150,7 @@ The intended workflow is:
 1. Analyze the target repository.
 2. Ask the human only for unresolved, high-impact facts.
 3. Initialize or reconcile the harness files.
-4. Create execution plans for multi-step work.
+4. Create or reuse execution plans for repository-mutating work, including code, docs, configuration, tests, dependencies, build/release scripts, generated templates, runtime behavior, migrations, cleanup, and review fixes.
 5. Define the Acceptance Contract before implementation with product, UX, architecture, reliability, and security criteria.
 6. Log durable knowledge into active plans.
 7. Write the durable facts into permanent docs.
@@ -201,9 +201,11 @@ commands return structured JSON with `status: "blocked"`, a stable `reason`, a u
 Commit harness docs that carry durable repository knowledge: `AGENTS.md`, `ARCHITECTURE.md`,
 `docs/PLANS.md`, `docs/QUALITY_SCORE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md`,
 `docs/FRONTEND.md`, `docs/sops/`, `docs/product-specs/`, `docs/design-docs/`,
-`docs/references/`, and intentional execution-plan state.
+`docs/references/`, and execution-plan state.
 
-Do not commit local skill installs or generated evidence by default. `clean --apply` adds these ignores:
+Execution plans are project state. Commit active plans, completed plans, JSON sidecars, and `docs/exec-plans/workstreams.md` so another agent can recover the work from the repository.
+
+Do not commit local skill installs or generated evidence by default. `clean --apply` adds these directory-level ignores:
 
 ```gitignore
 # harness-engine transient files
@@ -223,8 +225,7 @@ git commit -m "Remove harness runtime artifacts from git"
 git push
 ```
 
-`clean --apply` removes local generated evidence and stale task snapshots, then uses
-`git rm --cached` to stage removal of tracked harness runtime files from git and the remote.
+`clean --apply` removes local generated evidence, then uses `git rm --cached` to stage removal of tracked local skill installs and generated evidence from git and the remote. It does not remove, ignore, or untrack execution plans, JSON sidecars, or workstreams.
 
 For multi-phase work, `Phase Continuity` and `docs/exec-plans/workstreams.md` form the recovery
 ledger. A plan like `Local Workbench Phase 1` can close only after it records whether the workstream
@@ -316,11 +317,11 @@ These scores describe the current implementation, not an external guarantee.
 | Layer | Score | Notes |
 | --- | ---: | --- |
 | Product fit | 9 / 10 | Clear purpose: install a Codex skill that creates and maintains an agent-first repository harness. Real acceptance against a fresh Go backend plus browser frontend project validated generation and later issue workflows. Broader usage across more project types would still improve confidence. |
-| Skill workflow design | 9.2 / 10 | Strong progressive workflow: analyze, confirm, init/reconcile, plan, capture knowledge, validate, score with evidence notes, rework, record continuity, close. The workflow now explicitly routes user-reported product, frontend, backend, architecture, data, security, performance, and reliability issues even when the user does not invoke the skill by name. |
+| Skill workflow design | 9.2 / 10 | Strong progressive workflow: analyze, confirm, init/reconcile, plan, capture knowledge, validate, score with evidence notes, rework, record continuity, close. The workflow now explicitly routes repository-mutating feature, bug, refactor, docs, dependency, UI, test, security, performance, and reliability work through the same lifecycle. |
 | Knowledge, quality, and workstream closure loop | 9.3 / 10 | Stable knowledge IDs plus exact destination evidence reduce noisy doc duplication. Execution plans now have JSON sidecars for Acceptance Contracts, Quality Results, defects, and knowledge state; `quality-score` rejects missing evidence notes or missing contracts, defects invalidate stale scores, and workstreams make phased work recoverable. |
 | CLI installer | 8 / 10 | Simple local/global/custom install modes, force replacement, and path discovery. It is intentionally minimal and does not manage Codex runtime configuration. |
-| Generated harness docs | 8.4 / 10 | Covers architecture, plans, reliability, security, frontend policy, issue workflows, references, generated artifacts, and SOPs. The docs now front-load exact knowledge evidence, per-dimension quality notes, and plan placeholder cleanup, but templates still require Codex to tighten project-specific language after generation. |
-| Evaluation coverage | 9.2 / 10 | `npm test` runs 20 structured eval cases covering empty-repo init, frontend analysis, init reconciliation, clean command behavior, closed-loop plan behavior, phase continuity, path canonicalization, defect recovery, required quality-score notes, exact knowledge evidence, structured sidecars, acceptance readiness, stale score rejection, generated-evidence cleanup, eval report shape, and user-owned doc preservation. A fully automated Codex child-agent E2E would raise this further. |
+| Generated harness docs | 8.4 / 10 | Covers architecture, plans, reliability, security, frontend policy, broad task intake, issue workflows, references, generated artifacts, and SOPs. The docs now front-load exact knowledge evidence, per-dimension quality notes, default plan lifecycle, and plan placeholder cleanup, but templates still require Codex to tighten project-specific language after generation. |
+| Evaluation coverage | 9.2 / 10 | `npm test` runs 23 structured eval cases covering empty-repo init, frontend analysis, init reconciliation, clean command behavior, broad task intake, closed-loop plan behavior, phase continuity, path canonicalization, defect recovery, required quality-score notes, exact knowledge evidence, structured sidecars, acceptance readiness, stale score rejection, generated-evidence cleanup, eval report shape, user-owned doc preservation, and frontend design control. A fully automated Codex child-agent E2E would raise this further. |
 | Release automation | 8 / 10 | Supports stable release, beta on every main commit, nightly, manual dry-run, artifacts, provenance, and token fallback. npm first-publish/trusted-publishing setup still requires external configuration. |
 | User-project safety | 8.8 / 10 | The skill avoids adding CI to target projects by default, preserves unmanaged files unless forced, and requires evidence-backed closure for defects and durable knowledge. More destructive-change simulation in evals would improve this score. |
 | Overall | 9.1 / 10 | The skill is now strong enough for regular use: self evals pass across the structured suite, real acceptance covered initial scaffold plus frontend and backend issue workflows, and plan lifecycle state is enforced through JSON sidecars. Remaining leverage is automated child-agent E2E coverage. |

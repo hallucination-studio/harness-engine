@@ -19,6 +19,11 @@ Every eval must separate four layers:
 If a requirement cannot be checked directly, write down why and replace it with the narrowest
 observable proxy. Do not silently convert it into a vague score.
 
+Repository-mutating eval work follows Harness Task Intake: create or reuse an active plan, set
+acceptance before implementation, validate with evidence, score with `quality-score`, close the
+plan, and run `check`. This applies to feature, bug, refactor, docs/policy, dependency/tooling,
+UI, test/eval, security, and performance changes.
+
 ## Eval Case Shape
 
 Model each case like an OpenAI eval sample: stable id, input, expected behavior, recorded events,
@@ -53,8 +58,9 @@ assertion, artifact, or explicitly documented limitation.
 
 ## Domain Issue Workflows
 
-Issue triage should be domain-routed before implementation. The generated `AGENTS.md` owns the
-current routing table; use it to decide which durable docs and SOPs to read first.
+Issue triage is one branch of Harness Task Intake and should be domain-routed before implementation.
+The generated `AGENTS.md` owns the current routing table; use it to decide which durable docs and
+SOPs to read first.
 
 Minimum expectations by domain:
 

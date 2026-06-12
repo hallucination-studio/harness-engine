@@ -168,6 +168,13 @@ def test_empty_repo_init(tmp_root):
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/workstreams.md")
     assert_contains(repo, "AGENTS.md", "docs/sops/")
     assert_contains(repo, "AGENTS.md", ".codex/skills/harness-engine/scripts/manage_harness.py check")
+    assert_contains(repo, "AGENTS.md", "## Harness Task Intake")
+    assert_contains(repo, "AGENTS.md", "Default rule: any request that changes repository files or behavior goes through the harness lifecycle")
+    assert_contains(repo, "AGENTS.md", "No-plan exceptions are narrow")
+    assert_contains(repo, "AGENTS.md", "plan-start")
+    assert_contains(repo, "AGENTS.md", "acceptance-set")
+    assert_contains(repo, "AGENTS.md", "quality-score")
+    assert_contains(repo, "AGENTS.md", "plan-close")
     assert_contains(repo, "AGENTS.md", "## Issue Workflows")
     assert_contains(repo, "AGENTS.md", "Product contract or acceptance drift")
     assert_contains(repo, "AGENTS.md", "Backend, API, runtime behavior, background jobs, or integrations")
@@ -175,8 +182,13 @@ def test_empty_repo_init(tmp_root):
     assert_contains(repo, "AGENTS.md", "Data, state, migrations, cache, queues, or file formats")
     assert_contains(repo, "AGENTS.md", "Security, privacy, auth, authorization, secrets, or sensitive data")
     assert_contains(repo, "AGENTS.md", "Performance, capacity, timeout, resource use, or availability")
-    assert_contains(repo, "AGENTS.md", "Convert the issue into assertions, tests, smoke checks, or a regression case")
+    assert_contains(repo, "AGENTS.md", "Convert requirements, risks, or reported failures into assertions, tests, smoke checks, or review evidence")
     assert_contains(repo, "AGENTS.md", "Log confirmed defects or missing evidence with `defect-log`")
+    assert_contains(repo, "docs/PLANS.md", "Create or reuse an execution plan for every repository change")
+    assert_contains(repo, "docs/PLANS.md", "For small changes, keep the plan lightweight")
+    assert_contains(repo, "docs/PLANS.md", "Only skip an execution plan for pure question answering")
+    assert_contains(repo, "docs/exec-plans/active/README.md", "Create one markdown file per in-flight repository change")
+    assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Read Harness Task Intake in `AGENTS.md`")
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Evidence Requirements")
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Treat LLM or human judgment as a summary over evidence")
     assert_contains(repo, "docs/QUALITY_SCORE.md", "Backend and runtime scores must cite")
@@ -190,7 +202,6 @@ def test_empty_repo_init(tmp_root):
         if (repo / relative_path).exists():
             raise AssertionError(f"Empty backend-shaped repo should not receive frontend design docs: {relative_path}")
     assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Report per-case results")
-    assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Read the Issue Workflows in `AGENTS.md`")
 
 
 def test_frontend_analysis(tmp_root):
@@ -276,14 +287,20 @@ def test_clean_removes_runtime_state_and_untracks_artifacts(tmp_root):
         ".codex/skills/harness-engine/SKILL.md",
         "docs/generated/canvas-polish-desktop-final.png",
         "docs/generated/harness-analysis.json",
-        "docs/exec-plans/active/2026-06-11-old-task.md",
-        "docs/exec-plans/completed/2026-06-11-old-task.md",
     ]
-    for relative_path in tracked_files:
+    durable_plan_files = [
+        "docs/exec-plans/active/2026-06-11-old-task.md",
+        "docs/exec-plans/active/2026-06-11-old-task.json",
+        "docs/exec-plans/completed/2026-06-11-old-task.md",
+        "docs/exec-plans/completed/2026-06-11-old-task.json",
+        "docs/exec-plans/workstreams.md",
+    ]
+    all_files = tracked_files + durable_plan_files
+    for relative_path in all_files:
         path = repo / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("tracked runtime artifact\n")
-    subprocess.run(["git", "add", *tracked_files], cwd=repo, text=True, capture_output=True, check=True)
+        path.write_text("tracked harness file\n")
+    subprocess.run(["git", "add", *all_files], cwd=repo, text=True, capture_output=True, check=True)
     subprocess.run(
         ["git", "commit", "-m", "track runtime artifacts"],
         cwd=repo,
@@ -296,16 +313,22 @@ def test_clean_removes_runtime_state_and_untracks_artifacts(tmp_root):
     if dry_run["mode"] != "dry-run" or dry_run["tracked_candidate_count"] != len(tracked_files):
         raise AssertionError("clean should dry-run tracked runtime artifact candidates")
     if set(dry_run["tracked_candidates"]) != set(tracked_files):
-        raise AssertionError("clean tracked candidates should match tracked harness runtime artifacts")
+        raise AssertionError("clean tracked candidates should include only local skill installs and generated evidence")
+    if set(dry_run["tracked_candidates"]) & set(durable_plan_files):
+        raise AssertionError("clean dry-run should not list execution plans, sidecars, or workstreams as tracked candidates")
     if "docs/generated/canvas-polish-desktop-final.png" not in set(dry_run["local_candidates"]):
         raise AssertionError("clean should preview local generated evidence cleanup")
-    for relative_path in tracked_files:
+    if set(dry_run["local_candidates"]) & set(durable_plan_files):
+        raise AssertionError("clean dry-run should not list execution plans, sidecars, or workstreams as local cleanup candidates")
+    for relative_path in all_files:
         if not (repo / relative_path).exists():
             raise AssertionError("clean dry-run should not delete local files")
 
     applied = run_manager("clean", "--repo", str(repo), "--apply")
     if applied["mode"] != "apply" or set(applied["removed_from_index"]) != set(tracked_files):
         raise AssertionError("clean --apply should remove candidates from the git index")
+    if set(applied["removed_from_index"]) & set(durable_plan_files):
+        raise AssertionError("clean --apply should not untrack execution plans, sidecars, or workstreams")
     assert_contains(repo, ".gitignore", ".codex/skills/")
     assert_contains(repo, ".gitignore", "docs/generated/")
     status = subprocess.run(
@@ -318,6 +341,11 @@ def test_clean_removes_runtime_state_and_untracks_artifacts(tmp_root):
     for relative_path in tracked_files:
         if f"D  {relative_path}" not in status:
             raise AssertionError(f"clean should stage index deletion for {relative_path}")
+    for relative_path in durable_plan_files:
+        if f"D  {relative_path}" in status:
+            raise AssertionError(f"clean should not stage index deletion for durable plan state {relative_path}")
+        if not (repo / relative_path).exists():
+            raise AssertionError(f"clean should keep durable plan state file {relative_path}")
     for relative_path in tracked_files:
         if relative_path.startswith(".codex/skills/"):
             if not (repo / relative_path).exists():
@@ -326,6 +354,83 @@ def test_clean_removes_runtime_state_and_untracks_artifacts(tmp_root):
             raise AssertionError(f"clean should delete local runtime file for {relative_path}")
     if "A  .gitignore" not in status:
         raise AssertionError("clean should stage the new .gitignore block")
+
+
+def test_broad_task_intake_routes_repo_changes(tmp_root):
+    repo = tmp_root / "task-intake-repo"
+    repo.mkdir()
+    answers = tmp_root / "task-intake-answers.json"
+    write_answers(answers, project_name="task-intake-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    agents = (repo / "AGENTS.md").read_text()
+    plans = (repo / "docs" / "PLANS.md").read_text()
+    active_readme = (repo / "docs" / "exec-plans" / "active" / "README.md").read_text()
+    sop = (repo / "docs" / "sops" / "evidence-first-eval-loop.md").read_text()
+
+    for needle in [
+        "## Harness Task Intake",
+        "Default rule: any request that changes repository files or behavior goes through the harness lifecycle",
+        "code, docs, configuration, tests, dependencies, generated templates, build/release scripts, runtime behavior, migrations, cleanup",
+        "No-plan exceptions are narrow",
+        "Create or reuse an active plan with `plan-start`",
+        "Define a ready Acceptance Contract with `acceptance-set` before implementation",
+        "score with `quality-score`",
+        "Close with `plan-close`",
+        "check --repo .",
+    ]:
+        if needle not in agents:
+            raise AssertionError(f"AGENTS.md should include broad task intake rule: {needle}")
+
+    scenario_needles = [
+        "New feature or product behavior",
+        "Bug, regression, or user-reported issue",
+        "Refactor, cleanup, or code organization",
+        "Frontend, UI, design, layout, terminal interface, visual state, or interaction",
+        "Tests, evals, fixtures, or validation harnesses",
+        "Documentation, policy, specs, or generated harness templates",
+        "Dependencies, tooling, package manager, or build system",
+        "Build, release, deployment, or packaging",
+        "Configuration, environment, flags, secrets handling, or policy gates",
+        "Data, migrations, storage, cache, queues, or file formats",
+        "Performance, reliability, observability, or operational behavior",
+        "Security, privacy, auth, authorization, or sensitive data",
+        "Code review finding or user feedback that requires changes",
+    ]
+    for needle in scenario_needles:
+        if needle not in agents:
+            raise AssertionError(f"AGENTS.md should route scenario: {needle}")
+
+    evidence_needles = [
+        "Product assertions, workflow checks, tests or smoke evidence",
+        "Reproduction, regression assertion, fix validation, defect log if confirmed",
+        "Before/after behavior checks, boundary or dependency notes, compatibility evidence",
+        "Browser or local-runtime evidence for workflows, states, and relevant viewports",
+        "Failing-before or coverage rationale, passing test/eval output, artifact paths when produced",
+        "Doc diff review, link/path validation, generated-output or eval evidence when templates change",
+        "Install/build/test output, lockfile or package diff, compatibility and rollback notes",
+        "Repeatable build/package output, smoke check, release-risk notes",
+        "Config diff, secret-handling review, permission or failure-mode evidence",
+        "Fixtures or migration checks, rollback/compatibility evidence, data-loss risk notes",
+        "Baseline measurement, repeatable benchmark or smoke check, logs/traces, before/after evidence",
+        "Threat check, sensitive-data path, permission test, and secret-handling evidence",
+    ]
+    for needle in evidence_needles:
+        if needle not in agents:
+            raise AssertionError(f"AGENTS.md should name minimum evidence: {needle}")
+
+    if "Issue handling is one branch of Harness Task Intake" not in agents:
+        raise AssertionError("Issue Workflows should be subordinate to Harness Task Intake")
+    if "Create or reuse an execution plan for every repository change" not in plans:
+        raise AssertionError("PLANS.md should require plans for every repository change")
+    if "For small changes, keep the plan lightweight" not in plans:
+        raise AssertionError("PLANS.md should keep small changes lightweight but planned")
+    if "Only skip an execution plan for pure question answering" not in plans:
+        raise AssertionError("PLANS.md should document no-plan exceptions")
+    if "Create one markdown file per in-flight repository change" not in active_readme:
+        raise AssertionError("active README should cover any in-flight repository change")
+    if "Read Harness Task Intake in `AGENTS.md`" not in sop:
+        raise AssertionError("SOP should start from Harness Task Intake")
 
 
 def test_closed_loop_plan(tmp_root):
@@ -1721,6 +1826,7 @@ EVALS = [
     ("frontend-analysis", test_frontend_analysis),
     ("init-reconciles-existing-harness", test_init_reconciles_existing_harness),
     ("clean-removes-runtime-state-and-untracks-artifacts", test_clean_removes_runtime_state_and_untracks_artifacts),
+    ("broad-task-intake-routes-repo-changes", test_broad_task_intake_routes_repo_changes),
     ("closed-loop-plan", test_closed_loop_plan),
     ("phase-continuity-workstream", test_phase_continuity_workstream),
     ("plan-path-canonicalization", test_plan_path_canonicalization),

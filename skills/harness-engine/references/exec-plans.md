@@ -1,19 +1,23 @@
 # Execution Plans
 
-Execution plans are required for multi-step work, risky changes, or tasks that need coordination across files.
+Execution plans are required for every repository-mutating change. This includes code, docs, configuration, tests, dependencies, build/release scripts, generated templates, runtime behavior, migrations, cleanup, and fixes found during review.
 
 ## When To Create One
 
-- more than one implementation step is required
-- validation is non-trivial
-- architecture, product, reliability, or security decisions are involved
+- any file will be edited or created
+- repository behavior, policy, generated templates, dependency state, build output, runtime behavior, or validation coverage will change
+- a review finding, user feedback item, bug, or regression requires a repository change
 - work will span enough time that another agent may resume it later
+
+Only skip a plan for pure question answering, read-only investigation, showing command output, or status reporting with no file changes. If the work moves from investigation to editing files, create or reuse an active plan before editing.
 
 ## Location
 
 - Workstream recovery ledger: `docs/exec-plans/workstreams.md`
 - Active: `docs/exec-plans/active/`
 - Completed: `docs/exec-plans/completed/`
+
+Active plans, completed plans, JSON sidecars, and `workstreams.md` are durable project state and should be version-controlled.
 
 ## Minimum Sections
 
@@ -33,6 +37,8 @@ Execution plans are required for multi-step work, risky changes, or tasks that n
 ## Operating Rule
 
 Update the active plan during the work. Define the Acceptance Contract before implementation, score the completed work against that contract, complete any required rework, record phase continuity for resumable work, move it to `completed`, and leave behind any durable facts in the right permanent docs.
+
+For small changes, keep the plan lightweight: narrow scope, short steps, and focused validation are acceptable. Do not skip `acceptance-set`, evidence-backed validation, `quality-score`, `plan-close`, or the final `check`.
 
 Before scoring or closing, replace generic starter text with task-specific content. Do not leave placeholders such as "Define in-scope work", "Add the first concrete step", or "Describe how the work will be verified". The default unused durable-knowledge line may remain open, but any real knowledge TODO must be logged, written, and marked complete.
 

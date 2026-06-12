@@ -13,7 +13,11 @@
   },
   {
     "id": "clean-removes-runtime-state-and-untracks-artifacts",
-    "description": "Clean should dry-run by default, remove local harness runtime state, update .gitignore, and stage removal of tracked harness runtime artifacts when applied."
+    "description": "Clean should dry-run by default, remove only local skill installs and generated evidence, update .gitignore, and preserve execution plans, sidecars, and workstreams."
+  },
+  {
+    "id": "broad-task-intake-routes-repo-changes",
+    "description": "Generated harness docs should route all repository-mutating feature, bug, refactor, docs, dependency, UI, test, security, and performance work through the same plan, acceptance, evidence, quality, close, and check lifecycle."
   },
   {
     "id": "closed-loop-plan",
