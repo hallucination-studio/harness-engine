@@ -1516,6 +1516,12 @@ def test_plan_close_moves_sidecar_and_rejects_stale_score(tmp_root):
     completed_check = run_manager("check", "--repo", str(repo))
     if completed_check["status"] != "pass":
         raise AssertionError("completed structured plan should satisfy check")
+    sidecar_before_check = completed_sidecar.read_text()
+    second_completed_check = run_manager("check", "--repo", str(repo))
+    if second_completed_check["status"] != "pass":
+        raise AssertionError("repeated completed-plan check should still pass")
+    if completed_sidecar.read_text() != sidecar_before_check:
+        raise AssertionError("check should not rewrite unchanged completed plan sidecars or bump updated_at")
 
 
 def test_evidence_prune_generated_artifacts(tmp_root):

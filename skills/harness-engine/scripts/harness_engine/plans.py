@@ -172,19 +172,22 @@ def sync_plan_markdown_from_state(plan_path, state):
 def sync_state_from_markdown(plan_path, state):
     from .knowledge import extract_defect_items, extract_knowledge_items, parse_defect_item, parse_knowledge_item
     text = plan_path.read_text()
-    state["defects"] = []
+    defects = []
     for item in extract_defect_items(text):
         parsed = parse_defect_item(item)
         if parsed:
-            state["defects"].append(parsed)
-    state["knowledge_items"] = []
+            defects.append(parsed)
+    knowledge_items = []
     for item in extract_knowledge_items(text):
         if item == DEFAULT_KNOWLEDGE_PLACEHOLDER:
             continue
         parsed = parse_knowledge_item(item)
         if parsed:
-            state["knowledge_items"].append(parsed)
-    save_plan_state(plan_path, state)
+            knowledge_items.append(parsed)
+    if state.get("defects") != defects or state.get("knowledge_items") != knowledge_items:
+        state["defects"] = defects
+        state["knowledge_items"] = knowledge_items
+        save_plan_state(plan_path, state)
     return state
 
 
@@ -624,5 +627,4 @@ def close_plan(repo, plan_relative_path, summary, force):
     completed_relative_path = str(destination.relative_to(repo))
     update_workstreams_after_plan_close(repo, active_relative_path, completed_relative_path)
     return destination, open_items
-
 
