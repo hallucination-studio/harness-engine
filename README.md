@@ -1,5 +1,12 @@
 # Harness Engine
 
+[![npm version](https://img.shields.io/npm/v/%40hallucination-studio%2Fharness-engine?color=cb3837&logo=npm)](https://www.npmjs.com/package/@hallucination-studio/harness-engine)
+[![npm downloads](https://img.shields.io/npm/dm/%40hallucination-studio%2Fharness-engine?logo=npm)](https://www.npmjs.com/package/@hallucination-studio/harness-engine)
+[![CI](https://github.com/hallucination-studio/harness-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/hallucination-studio/harness-engine/actions/workflows/ci.yml)
+[![Publish Release](https://github.com/hallucination-studio/harness-engine/actions/workflows/publish-release.yml/badge.svg)](https://github.com/hallucination-studio/harness-engine/actions/workflows/publish-release.yml)
+[![Publish Nightly](https://github.com/hallucination-studio/harness-engine/actions/workflows/publish-nightly.yml/badge.svg)](https://github.com/hallucination-studio/harness-engine/actions/workflows/publish-nightly.yml)
+[![license](https://img.shields.io/npm/l/%40hallucination-studio%2Fharness-engine)](https://github.com/hallucination-studio/harness-engine/blob/main/LICENSE)
+
 Harness Engine packages a Codex skill that bootstraps an agent-first repository harness.
 It turns the repository-shaping ideas from OpenAI's
 ["Harness engineering: leveraging Codex in an agent-first world"](https://openai.com/index/harness-engineering/)
