@@ -205,66 +205,152 @@ frontend: true
 source: harness-engine-template
 colors:
   primary: "#1A1C1E"
+  on-primary: "#FFFFFF"
+  primary-container: "#F0F1F2"
+  on-primary-container: "#1A1C1E"
   secondary: "#6C7278"
+  on-secondary: "#FFFFFF"
   tertiary: "#B8422E"
+  on-tertiary: "#FFFFFF"
   neutral: "#F7F5F2"
   surface: "#FFFFFF"
+  surface-muted: "#F3F4F6"
+  surface-elevated: "#FFFFFF"
   text: "#1A1C1E"
   muted: "#6C7278"
+  border: "#D7D9DD"
+  focus: "#2563EB"
+  success: "#166534"
+  warning: "#A16207"
+  danger: "#B91C1C"
 typography:
-  display:
+  display-xl:
     fontFamily: Inter
-    fontSize: 48px
+    fontSize: 56px
     fontWeight: "700"
     lineHeight: 1.1
     letterSpacing: 0px
-  headline:
+  display-md:
+    fontFamily: Inter
+    fontSize: 44px
+    fontWeight: "700"
+    lineHeight: 1.12
+    letterSpacing: 0px
+  headline-lg:
     fontFamily: Inter
     fontSize: 32px
     fontWeight: "650"
     lineHeight: 1.2
     letterSpacing: 0px
-  body:
+  headline-md:
+    fontFamily: Inter
+    fontSize: 24px
+    fontWeight: "650"
+    lineHeight: 1.25
+    letterSpacing: 0px
+  title-lg:
+    fontFamily: Inter
+    fontSize: 20px
+    fontWeight: "650"
+    lineHeight: 28px
+    letterSpacing: 0px
+  title-md:
+    fontFamily: Inter
+    fontSize: 18px
+    fontWeight: "650"
+    lineHeight: 26px
+    letterSpacing: 0px
+  body-lg:
+    fontFamily: Inter
+    fontSize: 18px
+    fontWeight: "400"
+    lineHeight: 30px
+    letterSpacing: 0px
+  body-md:
     fontFamily: Inter
     fontSize: 16px
     fontWeight: "400"
-    lineHeight: 1.6
+    lineHeight: 24px
     letterSpacing: 0px
-  label:
+  body-sm:
+    fontFamily: Inter
+    fontSize: 14px
+    fontWeight: "400"
+    lineHeight: 20px
+    letterSpacing: 0px
+  label-md:
     fontFamily: Inter
     fontSize: 13px
     fontWeight: "600"
     lineHeight: 20px
     letterSpacing: 0px
+  label-sm:
+    fontFamily: Inter
+    fontSize: 12px
+    fontWeight: "600"
+    lineHeight: 16px
+    letterSpacing: 0px
 rounded:
+  xs: 2px
   sm: 4px
   md: 8px
   lg: 12px
+  xl: 16px
+  full: 9999px
 spacing:
   base: 8px
   xs: 4px
-  sm: 12px
-  md: 24px
-  lg: 40px
-  xl: 64px
+  sm: 8px
+  md: 16px
+  lg: 24px
+  xl: 40px
+  xxl: 64px
+  gutter: 24px
+  page: 48px
 components:
   button-primary:
     backgroundColor: "{{colors.tertiary}}"
-    textColor: "{{colors.surface}}"
-    typography: "{{typography.label}}"
-    rounded: "{{rounded.md}}"
-    padding: "{{spacing.sm}}"
-  card:
-    backgroundColor: "{{colors.surface}}"
-    textColor: "{{colors.text}}"
+    textColor: "{{colors.on-tertiary}}"
+    typography: "{{typography.label-md}}"
     rounded: "{{rounded.md}}"
     padding: "{{spacing.md}}"
+    height: 44px
+  button-primary-hover:
+    backgroundColor: "{{colors.primary}}"
+    textColor: "{{colors.on-primary}}"
+  button-secondary:
+    backgroundColor: "{{colors.surface}}"
+    textColor: "{{colors.primary}}"
+    typography: "{{typography.label-md}}"
+    rounded: "{{rounded.md}}"
+    padding: "{{spacing.md}}"
+    height: 44px
+  button-secondary-hover:
+    backgroundColor: "{{colors.primary-container}}"
+    textColor: "{{colors.on-primary-container}}"
+  card:
+    backgroundColor: "{{colors.surface-elevated}}"
+    textColor: "{{colors.text}}"
+    rounded: "{{rounded.lg}}"
+    padding: "{{spacing.lg}}"
   input:
     backgroundColor: "{{colors.surface}}"
     textColor: "{{colors.text}}"
-    typography: "{{typography.body}}"
+    typography: "{{typography.body-md}}"
     rounded: "{{rounded.sm}}"
-    padding: "{{spacing.sm}}"
+    padding: "{{spacing.md}}"
+    height: 40px
+  badge:
+    backgroundColor: "{{colors.surface-muted}}"
+    textColor: "{{colors.muted}}"
+    typography: "{{typography.label-sm}}"
+    rounded: "{{rounded.full}}"
+    padding: "{{spacing.xs}}"
+  table-row:
+    backgroundColor: "{{colors.surface}}"
+    textColor: "{{colors.text}}"
+    typography: "{{typography.body-sm}}"
+    height: 44px
 ---
 
 # Design System: {project_name}
@@ -287,33 +373,37 @@ This document is the repository-owned visual system. It follows the DESIGN.md pa
 
 ## Colors
 
-Use the YAML tokens as the source of truth. Replace the starter palette with project-specific colors before major UI implementation. Derive replacements from the human-confirmed style direction and existing frontend code, not from an external generator.
+Use the YAML tokens as the source of truth. Replace the starter palette with project-specific colors before major UI implementation. Derive replacements from the human-confirmed style direction and existing frontend code, not from an external generator. Every UI surface must map colors to semantic roles instead of introducing one-off hex values in components.
 
-- **Primary:** Core text, navigation, and durable brand presence.
-- **Secondary:** Metadata, borders, captions, and lower-emphasis UI.
-- **Tertiary:** Primary actions and critical interactive emphasis.
-- **Neutral:** Page background and quiet surface contrast.
+- **Primary / On Primary:** Durable brand presence, selected navigation, and high-emphasis surfaces.
+- **Secondary:** Metadata, borders, captions, inactive states, and lower-emphasis UI.
+- **Tertiary / On Tertiary:** Primary actions and critical interactive emphasis.
+- **Neutral / Surface:** Page backgrounds, panels, cards, table rows, and form fields.
+- **State colors:** Success, warning, danger, and focus must be used consistently for feedback and validation.
+- **Borders:** Use the `border` token for rules, dividers, field strokes, table separators, and card outlines.
 
 ## Typography
 
-Use a restrained type hierarchy until the product has stronger brand requirements.
+Use one primary UI font family across the product until the project explicitly documents a second family. All headings, labels, body text, metadata, tables, and controls must map to the typography tokens in frontmatter. Do not create local font sizes or weights in component files unless `docs/DESIGN.md` is updated first.
 
-- **Display:** Highest-level product or workflow moments only.
-- **Headline:** Section and panel titles.
-- **Body:** Main explanatory and task text.
-- **Label:** Buttons, field labels, metadata, and compact controls.
+- **Display XL / Display MD:** Rare product-level moments, onboarding, or empty states. Do not use inside dense panels.
+- **Headline LG / Headline MD:** Page, section, and major panel titles.
+- **Title LG / Title MD:** Card titles, modal titles, table group headings, and toolbar labels.
+- **Body LG / Body MD / Body SM:** Main reading text, dense table copy, helper text, and secondary descriptions.
+- **Label MD / Label SM:** Buttons, form labels, badges, tabs, compact metadata, and column headers.
+- **Font rule:** Use the tokenized `fontFamily`, `fontSize`, `fontWeight`, `lineHeight`, and `letterSpacing` values in shared style files so type remains uniform across the product.
 
 ## Layout
 
-Use an 8px spacing rhythm. Keep workflow surfaces dense enough for repeated use but leave enough separation for scanning, comparison, and error recovery. Document any fixed-format surfaces, responsive breakpoints, and primary task areas here before implementing them.
+Use the spacing tokens as the implementation scale. Keep workflow surfaces dense enough for repeated use but leave enough separation for scanning, comparison, and error recovery. Document fixed-format surfaces, responsive breakpoints, page gutters, panel padding, table density, and primary task areas here before implementing them. Do not add ad hoc margins that bypass the token scale.
 
 ## Elevation & Depth
 
-Prefer hierarchy through spacing, contrast, borders, and restrained shadows. Record when the product uses flat layers, cards, panels, translucent surfaces, or depth effects, and keep those choices consistent across components.
+Prefer hierarchy through spacing, contrast, borders, tonal layers, and restrained shadows. Record the allowed elevation levels for base page, raised surface, modal/popover, and active drag/focus states. If the product is flat, say so and use border/contrast tokens consistently instead of shadows.
 
 ## Shapes
 
-Use the rounded token scale consistently. Buttons, inputs, cards, chips, modals, and fixed-format controls should share a coherent corner-radius language.
+Use the rounded token scale consistently. Buttons, inputs, cards, chips, modals, tables, and fixed-format controls should share a coherent corner-radius language. Do not mix pill, sharp, and soft-rounded styles without documenting the role of each shape.
 
 ## Components
 
@@ -326,16 +416,20 @@ Define component treatment before scaling UI work:
 - **Tables and lists:** row height, selected state, sorting/filtering affordances, empty state, and overflow behavior.
 - **Feedback states:** loading, empty, error, success, warning, and permission-denied patterns.
 
+All shared UI components must consume tokens from this document through the project's existing style layer, such as CSS variables, Tailwind theme config, theme modules, component library theme objects, or generated token notes. Component-local styling is allowed only for layout-specific composition, not for redefining global color, type, spacing, or radius decisions.
+
 ## Do's and Don'ts
 
 - Do update this file with project-specific visual decisions before large UI changes.
 - Do reconcile the requested style direction with the current frontend code before changing shared styles.
 - Do keep tokens and prose aligned: tokens provide exact values, prose explains when to use them.
+- Do map tokens into the project's shared style file, theme config, or component theme module before broad UI implementation.
 - Do cite this file in frontend plans and code-review notes when UI choices matter.
 - Do validate meaningful UI work in a real browser before closing it out.
 - Don't call external design skills or packages during harness init.
 - Don't create one-off component styles that contradict this file without updating it.
 - Don't leave generic palette or typography defaults in place for production-facing UI.
+- Don't add untracked font families, font sizes, shadows, radii, or semantic colors directly in component files.
 """,
     "docs/FRONTEND.md": """{marker}
 # Frontend
@@ -374,6 +468,8 @@ Existing frontend code signals: {existing_frontend_style_notes}
 - Treat `docs/DESIGN.md` as the source of truth for UI tokens, colors, typography, spacing, radius, elevation, component treatment, and Do's and Don'ts.
 - Files controlled by `docs/DESIGN.md` include token notes under `docs/design-docs/`, Tailwind theme files, global CSS variables, component theme modules, Storybook/theme previews, and any UI implementation that consumes those tokens or style rules.
 - Agents must read in this order for UI work: `docs/FRONTEND.md`, `docs/DESIGN.md`, then the component, theme, or stylesheet being changed.
+- When implementing UI, map `docs/DESIGN.md` tokens into the project's shared style layer first: CSS variables, Tailwind config, theme module, component-library theme, or equivalent existing style file.
+- Do not add new fonts, font sizes, semantic colors, shadows, radii, or spacing scales directly in component files. Add or update tokens in `docs/DESIGN.md`, then update the shared style layer and consume it from components.
 - Do not call external design-generation skills or package CLIs as part of harness init. If a project later adopts a generator, record that decision here first.
 
 ## Evidence For Meaningful UI Work

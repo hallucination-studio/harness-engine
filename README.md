@@ -88,7 +88,7 @@ during `init`. When a target repository has no frontend, it does not generate `d
 When a frontend is detected, Harness Engine creates:
 
 - `docs/FRONTEND.md`: project positioning, requested style direction, existing frontend code signals, frontend scope, stack notes, validation loop, and the read order for UI work.
-- `docs/DESIGN.md`: a project-owned unified visual specification using YAML design tokens plus markdown rationale, seeded from the human-confirmed style direction and existing frontend code signals.
+- `docs/DESIGN.md`: a project-owned unified visual specification using YAML design tokens plus markdown rationale, seeded from the human-confirmed style direction and existing frontend code signals. It defines semantic colors, a unified typography scale, spacing/radius tokens, component states, and rules for mapping those tokens into the project's shared style layer.
 - `docs/design-docs/`: durable design decisions and style-system notes.
 
 The templates are informed by the local reference checkout at `/Users/murphy/code/github/design.md`
